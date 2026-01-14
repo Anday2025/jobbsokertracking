@@ -1,202 +1,267 @@
-// -------------------- i18n --------------------
-const I18N = {
-  no: {
-    title: "Jobbsøker-tracker",
-    subtitle: "Hold oversikt over søknadene dine.",
-    appsTitle: "Søknader",
-    newAppTitle: "Ny søknad",
-    listTitle: "Liste",
-    companyLabel: "Firma *",
-    companyPh: "F.eks. NAV / Telenor",
-    roleLabel: "Stilling *",
-    rolePh: "F.eks. Junior utvikler",
-    linkLabel: "Link",
-    linkPh: "https://...",
-    deadlineLabel: "Frist",
-    addBtn: "Legg til",
-    filters: { all:"Alle", planned:"Planlagt", applied:"Søkt", interview:"Intervju", rejected:"Avslått", offer:"Tilbud" },
-    footer: "Bygget med Java (Spring Boot) + vanilla JS + JWT.",
-    login: "Logg inn",
-    logout: "Logg ut",
-    notLogged: "Ikke innlogget",
-    loginHint: "Logg inn for å lagre og se dine søknader.",
-    modalTitleLogin: "Logg inn",
-    modalTitleRegister: "Opprett bruker",
-    emailPh: "E-post",
-    passPh: "Passord",
-    badCreds: "Feil e-post eller passord.",
-    genericErr: "Noe gikk galt",
-    statusMap: { PLANLAGT:"Planlagt", SOKT:"Søkt", INTERVJU:"Intervju", AVSLATT:"Avslått", TILBUD:"Tilbud" },
-    invalidStatus: "Ugyldig status",
-    noHits: "Ingen treff.",
-    mustLoginToAdd: "Du må logge inn for å legge til.",
-  },
-  en: {
-    title: "Job Tracker",
-    subtitle: "Keep track of your job applications.",
-    appsTitle: "Applications",
-    newAppTitle: "New application",
-    listTitle: "List",
-    companyLabel: "Company *",
-    companyPh: "e.g. Telenor / NAV",
-    roleLabel: "Role *",
-    rolePh: "e.g. Junior developer",
-    linkLabel: "Link",
-    linkPh: "https://...",
-    deadlineLabel: "Deadline",
-    addBtn: "Add",
-    filters: { all:"All", planned:"Planned", applied:"Applied", interview:"Interview", rejected:"Rejected", offer:"Offer" },
-    footer: "Built with Java (Spring Boot) + vanilla JS + JWT.",
-    login: "Sign in",
-    logout: "Sign out",
-    notLogged: "Not signed in",
-    loginHint: "Sign in to save and view your applications.",
-    modalTitleLogin: "Sign in",
-    modalTitleRegister: "Create account",
-    emailPh: "Email",
-    passPh: "Password",
-    badCreds: "Wrong email or password.",
-    genericErr: "Something went wrong",
-    statusMap: { PLANLAGT:"Planned", SOKT:"Applied", INTERVJU:"Interview", AVSLATT:"Rejected", TILBUD:"Offer" },
-    invalidStatus: "Invalid status",
-    noHits: "No results.",
-    mustLoginToAdd: "You must sign in to add.",
-  }
-};
+// app.js (ferdig løsning)
+// ------------------------------------------------------------
+// LAGRING
+const LS_TOKEN = "jwt";
+const LS_LANG = "lang"; // "no" | "en"
 
-function getLang() {
-  return localStorage.getItem("lang") || "no";
-}
-function setLang(lang) {
-  localStorage.setItem("lang", lang);
-}
-function T() {
-  return I18N[getLang()];
-}
-
-// -------------------- DOM --------------------
+// UI state
 let currentFilter = "ALL";
 let authMode = "login"; // "login" | "register"
+let lang = (localStorage.getItem(LS_LANG) || "no").toLowerCase();
 
+// ELEMENTER (må finnes i HTML)
 const listEl = document.getElementById("list");
 const statsEl = document.getElementById("stats");
 const form = document.getElementById("createForm");
 const formMsg = document.getElementById("formMsg");
-const loginHint = document.getElementById("loginHint");
 
-const whoamiEl = document.getElementById("whoami");
 const loginBtn = document.getElementById("loginBtn");
 const logoutBtn = document.getElementById("logoutBtn");
+const whoamiEl = document.getElementById("whoami");
 const langBtn = document.getElementById("langBtn");
 
-const modal = document.getElementById("authModal");
-const modalBackdrop = modal.querySelector(".modalBackdrop");
+// Modal / auth
+const authModal = document.getElementById("authModal");
 const authClose = document.getElementById("authClose");
 const authForm = document.getElementById("authForm");
-const authTitle = document.getElementById("authTitle");
 const authEmail = document.getElementById("authEmail");
 const authPassword = document.getElementById("authPassword");
 const authSubmitBtn = document.getElementById("authSubmitBtn");
 const toggleAuthModeBtn = document.getElementById("toggleAuthMode");
 const authMsg = document.getElementById("authMsg");
 
-// i18n ids
-const el = (id) => document.getElementById(id);
-
-// -------------------- token helpers --------------------
-const TOKEN_KEY = "jwt";
-
-function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
-}
-function setToken(token) {
-  localStorage.setItem(TOKEN_KEY, token);
-}
-function clearToken() {
-  localStorage.removeItem(TOKEN_KEY);
-}
-
-function setAuthUI(emailOrNull) {
-  if (emailOrNull) {
-    whoamiEl.textContent = emailOrNull;
-    loginBtn.classList.add("hidden");
-    logoutBtn.classList.remove("hidden");
-    loginHint.classList.add("hidden");
-    form.querySelectorAll("input,button").forEach(x => x.disabled = false);
-  } else {
-    whoamiEl.textContent = T().notLogged;
-    loginBtn.classList.remove("hidden");
-    logoutBtn.classList.add("hidden");
-    loginHint.classList.remove("hidden");
-    // Disable submit for add (but keep inputs visible)
-    form.querySelectorAll("input").forEach(x => x.disabled = true);
-    form.querySelector("button[type='submit']").disabled = true;
+// Oversettelser (tilpass gjerne)
+const I18N = {
+  no: {
+    title: "Jobbsøker-tracker",
+    subtitle: "Hold oversikt over søknadene dine.",
+    login: "Logg inn",
+    logout: "Logg ut",
+    notLogged: "Ikke innlogget",
+    email: "E-post",
+    password: "Passord",
+    createUser: "Opprett bruker",
+    haveUser: "Har du bruker? Logg inn",
+    ok: "OK",
+    errorGeneric: "Noe gikk galt",
+    invalidCreds: "Ugyldig e-post eller passord",
+    mustLogin: "Logg inn for å se søknadene dine.",
+    add: "Legg til",
+    delete: "Slett",
+    noHits: "Ingen treff.",
+    statuses: {
+      PLANLAGT: "Planlagt",
+      SOKT: "Søkt",
+      INTERVJU: "Intervju",
+      AVSLATT: "Avslått",
+      TILBUD: "Tilbud"
+    },
+    statsFmt: (c) =>
+      `Planlagt: ${c.PLANLAGT || 0} • Søkt: ${c.SOKT || 0} • Intervju: ${c.INTERVJU || 0} • Tilbud: ${c.TILBUD || 0} • Avslått: ${c.AVSLATT || 0}`
+  },
+  en: {
+    title: "Job tracker",
+    subtitle: "Keep track of your applications.",
+    login: "Sign in",
+    logout: "Sign out",
+    notLogged: "Not signed in",
+    email: "Email",
+    password: "Password",
+    createUser: "Create account",
+    haveUser: "Already have an account? Sign in",
+    ok: "OK",
+    errorGeneric: "Something went wrong",
+    invalidCreds: "Invalid email or password",
+    mustLogin: "Sign in to see your applications.",
+    add: "Add",
+    delete: "Delete",
+    noHits: "No results.",
+    statuses: {
+      PLANLAGT: "Planned",
+      SOKT: "Applied",
+      INTERVJU: "Interview",
+      AVSLATT: "Rejected",
+      TILBUD: "Offer"
+    },
+    statsFmt: (c) =>
+      `Planned: ${c.PLANLAGT || 0} • Applied: ${c.SOKT || 0} • Interview: ${c.INTERVJU || 0} • Offer: ${c.TILBUD || 0} • Rejected: ${c.AVSLATT || 0}`
   }
+};
+
+function T() {
+  return I18N[lang] || I18N.no;
 }
 
-// -------------------- modal helpers --------------------
-function openModal() {
-  modal.classList.remove("hidden");
-  modal.setAttribute("aria-hidden", "false");
-  authMsg.textContent = "";
-  authMsg.className = "msg";
-  setMode("login");
-  setTimeout(() => authEmail.focus(), 30);
-}
-function closeModal() {
-  modal.classList.add("hidden");
-  modal.setAttribute("aria-hidden", "true");
-}
-
-function setMode(mode) {
-  authMode = mode;
-  if (mode === "login") {
-    authTitle.textContent = T().modalTitleLogin;
-    authSubmitBtn.textContent = T().login;
-    toggleAuthModeBtn.textContent = T().modalTitleRegister;
-    authPassword.autocomplete = "current-password";
-  } else {
-    authTitle.textContent = T().modalTitleRegister;
-    authSubmitBtn.textContent = T().modalTitleRegister;
-    toggleAuthModeBtn.textContent = T().modalTitleLogin;
-    authPassword.autocomplete = "new-password";
-  }
-  authEmail.placeholder = T().emailPh;
-  authPassword.placeholder = T().passPh;
-}
-
-// -------------------- API wrapper --------------------
+// ------------------------------------------------------------
+// API helper som alltid sender token
 async function apiFetch(url, options = {}) {
-  const token = getToken();
+  const token = localStorage.getItem(LS_TOKEN);
   const headers = new Headers(options.headers || {});
-  if (!headers.has("Content-Type") && options.body) headers.set("Content-Type", "application/json");
-  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  if (options.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+    // ekstra fallback (skader ikke)
+    headers.set("X-Auth-Token", token);
+  }
 
   const res = await fetch(url, { ...options, headers });
 
-  // If we are unauthorized on protected endpoints, open modal (but do not spam)
   if (res.status === 401) {
-    // token is invalid -> clear it
-    if (token) clearToken();
-    setAuthUI(null);
-    // Only open modal if user is trying to access protected data
-    if (url.startsWith("/api/apps") || url.startsWith("/api/auth/me")) {
-      // Do not open if already open
-      if (modal.classList.contains("hidden")) openModal();
-    }
+    // token ugyldig/utløpt → logg ut lokalt
+    localStorage.removeItem(LS_TOKEN);
   }
-
   return res;
 }
 
-// -------------------- apps logic --------------------
-function badge(status) {
-  return T().statusMap[status] ?? status;
+// ------------------------------------------------------------
+// AUTH
+function setAuthUI(emailOrNull) {
+  const signedIn = !!emailOrNull;
+
+  // whoami
+  whoamiEl.textContent = signedIn ? emailOrNull : T().notLogged;
+
+  // knapper
+  if (loginBtn) loginBtn.classList.toggle("hidden", signedIn);
+  logoutBtn.classList.toggle("hidden", !signedIn);
+
+  // Form (disable når ikke innlogget)
+  const disable = !signedIn;
+  form.querySelectorAll("input, button").forEach((el) => (el.disabled = disable));
+
+  // Hint i liste når ikke innlogget
+  if (disable) {
+    statsEl.textContent = "—";
+    listEl.innerHTML = `<div class="muted">${T().mustLogin}</div>`;
+  }
 }
+
+async function refreshAuthState() {
+  const token = localStorage.getItem(LS_TOKEN);
+  if (!token) {
+    setAuthUI(null);
+    return;
+  }
+
+  const res = await apiFetch("/api/auth/me");
+  if (!res.ok) {
+    setAuthUI(null);
+    return;
+  }
+
+  const me = await res.json();
+  const email =
+    me?.email ||
+    me?.username ||
+    me?.user?.email ||
+    me?.user?.username ||
+    null;
+
+  setAuthUI(email);
+}
+
+async function login(email, password) {
+  const res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password })
+  });
+
+  const text = await res.text();
+  if (!res.ok) {
+    // ofte 401/403 her
+    throw new Error(text || T().invalidCreds);
+  }
+
+  let data = {};
+  try {
+    data = JSON.parse(text || "{}");
+  } catch {
+    // ignore
+  }
+
+  const token =
+    data.token ||
+    data.jwt ||
+    data.accessToken ||
+    data?.data?.token ||
+    data?.data?.jwt;
+
+  // Noen backend returnerer token som ren tekst
+  const raw = (text || "").trim();
+  const fallbackRawToken = raw.startsWith("eyJ") ? raw : null;
+
+  const finalToken = token || fallbackRawToken;
+  if (!finalToken) {
+    throw new Error("Fant ikke token i responsen fra /api/auth/login");
+  }
+
+  localStorage.setItem(LS_TOKEN, finalToken);
+  return finalToken;
+}
+
+async function register(email, password) {
+  const res = await fetch("/api/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password })
+  });
+
+  const text = await res.text();
+  if (!res.ok) throw new Error(text || T().errorGeneric);
+
+  // Noen register-endepunkt returnerer token, noen ikke.
+  let data = {};
+  try { data = JSON.parse(text || "{}"); } catch {}
+
+  const token =
+    data.token ||
+    data.jwt ||
+    data.accessToken ||
+    data?.data?.token ||
+    data?.data?.jwt;
+
+  if (token) {
+    localStorage.setItem(LS_TOKEN, token);
+    return token;
+  }
+  return null;
+}
+
+function logout() {
+  localStorage.removeItem(LS_TOKEN);
+  setAuthUI(null);
+}
+
+// ------------------------------------------------------------
+// MODAL
+function openModal() {
+  if (!authModal) return;
+  authModal.classList.remove("hidden");
+  authMsg.textContent = "";
+  setTimeout(() => authEmail?.focus(), 0);
+}
+
+function closeModal() {
+  if (!authModal) return;
+  authModal.classList.add("hidden");
+  authMsg.textContent = "";
+}
+
+// ------------------------------------------------------------
+// APP (Job applications)
+function badge(status) {
+  return T().statuses[status] ?? status;
+}
+
 function fmtDate(d) {
   if (!d) return "—";
   return d;
 }
+
 function isOverdue(deadline, status) {
   if (!deadline) return false;
   if (status === "AVSLATT" || status === "TILBUD") return false;
@@ -206,15 +271,27 @@ function isOverdue(deadline, status) {
 }
 
 async function updateStatus(id, status) {
-  await apiFetch(`/api/apps/${id}/status`, {
+  const res = await apiFetch(`/api/apps/${id}/status`, {
     method: "PUT",
     body: JSON.stringify({ status })
   });
+
+  if (res.status === 401) {
+    setAuthUI(null);
+    openModal();
+    return;
+  }
   await load();
 }
 
 async function removeItem(id) {
-  await apiFetch(`/api/apps/${id}`, { method: "DELETE" });
+  const res = await apiFetch(`/api/apps/${id}`, { method: "DELETE" });
+
+  if (res.status === 401) {
+    setAuthUI(null);
+    openModal();
+    return;
+  }
   await load();
 }
 
@@ -227,8 +304,7 @@ function render(apps) {
     acc[a.status] = (acc[a.status] || 0) + 1;
     return acc;
   }, {});
-  statsEl.textContent =
-    `${badge("PLANLAGT")}: ${counts.PLANLAGT || 0} • ${badge("SOKT")}: ${counts.SOKT || 0} • ${badge("INTERVJU")}: ${counts.INTERVJU || 0} • ${badge("TILBUD")}: ${counts.TILBUD || 0} • ${badge("AVSLATT")}: ${counts.AVSLATT || 0}`;
+  statsEl.textContent = T().statsFmt(counts);
 
   if (filtered.length === 0) {
     listEl.innerHTML = `<div class="muted">${T().noHits}</div>`;
@@ -260,7 +336,7 @@ function render(apps) {
               `<option value="${s}" ${s===a.status ? "selected" : ""}>${badge(s)}</option>`
             ).join("")}
           </select>
-          <button data-del="${a.id}">Slett</button>
+          <button data-del="${a.id}">${T().delete}</button>
         </div>
       </div>
     `;
@@ -277,116 +353,81 @@ function render(apps) {
 }
 
 async function load() {
-  if (!getToken()) {
-    render([]);
-    return;
-  }
-  const res = await apiFetch("/api/apps");
-  if (!res.ok) return;
-  const apps = await res.json();
-  render(apps);
-}
-
-// -------------------- auth logic --------------------
-async function fetchMe() {
-  const token = getToken();
+  const token = localStorage.getItem(LS_TOKEN);
   if (!token) {
     setAuthUI(null);
     return;
   }
-  const res = await apiFetch("/api/auth/me");
-  if (!res.ok) return;
 
-  const me = await res.json(); // expects { email: "..." }
-  setAuthUI(me.email || me.username || me.name || T().notLogged);
-  closeModal();
-  await load();
-}
-
-async function submitAuth(e) {
-  e.preventDefault();
-  authMsg.textContent = "";
-  authMsg.className = "msg";
-
-  const email = authEmail.value.trim();
-  const password = authPassword.value;
-
-  const endpoint = authMode === "login" ? "/api/auth/login" : "/api/auth/register";
-
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password })
-  });
-
+  const res = await apiFetch("/api/apps");
+  if (res.status === 401) {
+    setAuthUI(null);
+    return;
+  }
   if (!res.ok) {
-    const text = await res.text();
-    authMsg.textContent = text || T().badCreds;
-    authMsg.classList.add("error");
+    listEl.innerHTML = `<div class="muted">${T().errorGeneric}</div>`;
     return;
   }
 
-  // Expect JSON like { token: "..." }
-  let data = null;
-  try { data = await res.json(); } catch {}
-  const token = data?.token || data?.jwt || data?.accessToken;
-
-  if (!token) {
-    authMsg.textContent = "Mangler token fra server (sjekk /api/auth/login respons)";
-    authMsg.classList.add("error");
-    return;
-  }
-
-  setToken(token);
-  authMsg.textContent = "OK";
-  authMsg.classList.add("ok");
-
-  await fetchMe();
+  const apps = await res.json();
+  render(apps);
 }
 
-function logout() {
-  clearToken();
-  setAuthUI(null);
-  render([]);
+function escapeHtml(str) {
+  return (str ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;");
 }
 
-// -------------------- i18n apply --------------------
-function applyLang() {
-  const t = T();
+// ------------------------------------------------------------
+// SPRÅK
+function applyLanguage() {
+  // knapp-tekst: NO/EN alltid synlig
+  if (langBtn) langBtn.textContent = lang === "no" ? "EN" : "NO";
 
-  document.documentElement.lang = getLang();
-  el("t_title").textContent = t.title;
-  el("t_subtitle").textContent = t.subtitle;
-  el("t_appsTitle").textContent = t.appsTitle;
-  el("t_newAppTitle").textContent = t.newAppTitle;
-  el("t_listTitle").textContent = t.listTitle;
-  el("t_companyLabel").textContent = t.companyLabel;
-  el("t_roleLabel").textContent = t.roleLabel;
-  el("t_linkLabel").textContent = t.linkLabel;
-  el("t_deadlineLabel").textContent = t.deadlineLabel;
-  el("t_addBtn").textContent = t.addBtn;
+  // Hvis du bruker data-i18n i HTML kan vi utvide senere.
+  // Foreløpig: oppdater auth UI label
+  const email = whoamiEl?.textContent;
+  const token = localStorage.getItem(LS_TOKEN);
 
-  el("t_f_all").textContent = t.filters.all;
-  el("t_f_planned").textContent = t.filters.planned;
-  el("t_f_applied").textContent = t.filters.applied;
-  el("t_f_interview").textContent = t.filters.interview;
-  el("t_f_rejected").textContent = t.filters.rejected;
-  el("t_f_offer").textContent = t.filters.offer;
+  if (!token) setAuthUI(null);
+  else setAuthUI(email && email.includes("@") ? email : email); // behold
 
-  el("t_footer").textContent = t.footer;
-  el("t_loginHint").textContent = t.loginHint;
+  // Oppdater auth modal placeholders/knapper
+  if (authEmail) authEmail.placeholder = T().email;
+  if (authPassword) authPassword.placeholder = T().password;
 
-  loginBtn.textContent = t.login;
-  logoutBtn.textContent = t.logout;
+  updateAuthModeTexts();
+}
 
-  if (!getToken()) whoamiEl.textContent = t.notLogged;
-
-  // update modal texts
-  setMode(authMode);
+function toggleLanguage() {
+  lang = (lang === "no") ? "en" : "no";
+  localStorage.setItem(LS_LANG, lang);
+  applyLanguage();
+  // re-render liste for status-tekster
   load();
 }
 
-// -------------------- events --------------------
+// ------------------------------------------------------------
+// AUTH UI TEXTS
+function updateAuthModeTexts() {
+  if (!authSubmitBtn || !toggleAuthModeBtn) return;
+
+  if (authMode === "login") {
+    authSubmitBtn.textContent = T().login;
+    toggleAuthModeBtn.textContent = T().createUser;
+    authPassword.autocomplete = "current-password";
+  } else {
+    authSubmitBtn.textContent = T().createUser;
+    toggleAuthModeBtn.textContent = T().haveUser;
+    authPassword.autocomplete = "new-password";
+  }
+}
+
+// ------------------------------------------------------------
+// EVENTS
 document.querySelectorAll(".filter").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".filter").forEach(b => b.classList.remove("active"));
@@ -399,11 +440,10 @@ document.querySelectorAll(".filter").forEach(btn => {
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   formMsg.textContent = "";
-  formMsg.className = "msg";
 
-  if (!getToken()) {
-    formMsg.textContent = T().mustLoginToAdd;
-    formMsg.classList.add("error");
+  const token = localStorage.getItem(LS_TOKEN);
+  if (!token) {
+    formMsg.textContent = T().mustLogin;
     openModal();
     return;
   }
@@ -421,10 +461,16 @@ form.addEventListener("submit", async (e) => {
     body: JSON.stringify(payload)
   });
 
+  if (res.status === 401) {
+    formMsg.textContent = T().mustLogin;
+    setAuthUI(null);
+    openModal();
+    return;
+  }
+
   if (!res.ok) {
     const text = await res.text();
-    formMsg.textContent = text || T().genericErr;
-    formMsg.classList.add("error");
+    formMsg.textContent = text || T().errorGeneric;
     return;
   }
 
@@ -432,35 +478,89 @@ form.addEventListener("submit", async (e) => {
   await load();
 });
 
-loginBtn.addEventListener("click", openModal);
-logoutBtn.addEventListener("click", logout);
-
-authClose.addEventListener("click", closeModal);
-modalBackdrop.addEventListener("click", closeModal);
-
-toggleAuthModeBtn.addEventListener("click", () => {
-  setMode(authMode === "login" ? "register" : "login");
-});
-
-authForm.addEventListener("submit", submitAuth);
-
-langBtn.addEventListener("click", () => {
-  const next = getLang() === "no" ? "en" : "no";
-  setLang(next);
-  applyLang();
-});
-
-// -------------------- helpers --------------------
-function escapeHtml(str) {
-  return (str ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;");
+// Login/open modal
+if (loginBtn) {
+  loginBtn.addEventListener("click", () => {
+    authMode = "login";
+    updateAuthModeTexts();
+    openModal();
+  });
 }
 
-// -------------------- init --------------------
-applyLang();
-setAuthUI(null);
-fetchMe(); // will only call /me if token exists
-load();
+// Logout
+logoutBtn.addEventListener("click", () => {
+  logout();
+  load();
+});
+
+// Modal close
+if (authClose) authClose.addEventListener("click", closeModal);
+
+// close when click on backdrop
+if (authModal) {
+  authModal.addEventListener("click", (e) => {
+    if (e.target === authModal) closeModal();
+  });
+}
+
+// esc closes
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && authModal && !authModal.classList.contains("hidden")) {
+    closeModal();
+  }
+});
+
+// Toggle auth mode (login/register)
+toggleAuthModeBtn.addEventListener("click", () => {
+  authMode = (authMode === "login") ? "register" : "login";
+  authMsg.textContent = "";
+  updateAuthModeTexts();
+});
+
+// Auth submit
+authForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  authMsg.textContent = "";
+
+  const email = (authEmail.value || "").trim();
+  const password = (authPassword.value || "").trim();
+
+  if (!email || !password) {
+    authMsg.textContent = T().errorGeneric;
+    return;
+  }
+
+  try {
+    if (authMode === "login") {
+      await login(email, password);
+    } else {
+      await register(email, password);
+      // hvis register ikke gir token, prøv login automatisk
+      if (!localStorage.getItem(LS_TOKEN)) {
+        await login(email, password);
+      }
+    }
+
+    authMsg.textContent = T().ok;
+
+    // Oppdater UI + last data
+    await refreshAuthState();
+    closeModal();
+    await load();
+  } catch (err) {
+    authMsg.textContent = err?.message || T().errorGeneric;
+  }
+});
+
+// Language button
+if (langBtn) langBtn.addEventListener("click", toggleLanguage);
+
+// ------------------------------------------------------------
+// INIT
+applyLanguage();
+updateAuthModeTexts();
+
+(async function init() {
+  await refreshAuthState();
+  await load();
+})();
