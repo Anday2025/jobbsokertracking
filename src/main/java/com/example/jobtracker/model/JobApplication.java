@@ -21,6 +21,10 @@ public class JobApplication {
     @Enumerated(EnumType.STRING)
     private Status status;
 
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
+
     public JobApplication() {}
 
     public Long getId() { return id; }
@@ -40,4 +44,7 @@ public class JobApplication {
 
     public Status getStatus() { return status; }
     public void setStatus(Status status) { this.status = status; }
+
+    public User getUser() { return user; }
+    public void setUser(User user) { this.user = user; }
 }

@@ -1,3 +1,76 @@
+// --- JWT helpers ---
+const TOKEN_KEY = "jwt_token";
+
+function setToken(token) {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+function clearToken() {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+function authHeaders() {
+  const token = getToken();
+  return token ? { "Authorization": `Bearer ${token}` } : {};
+}
+
+// Wrapper rundt fetch som alltid legger på Authorization-header og håndterer 401
+async function apiFetch(url, options = {}) {
+  const headers = {
+    ...(options.headers || {}),
+    ...authHeaders()
+  };
+
+  const res = await fetch(url, { ...options, headers });
+
+  if (res.status === 401) {
+    clearToken();
+    alert("Sesjonen din er utløpt eller du er ikke logget inn. Logg inn på nytt.");
+    location.reload();
+  }
+
+  return res;
+}
+
+// Midlertidig login/register uten UI (kun for testing)
+async function ensureLoggedIn() {
+  if (getToken()) return;
+
+  const email = prompt("Email:");
+  const password = prompt("Passord (min 6 tegn):");
+  if (!email || !password) return;
+
+  // Prøv login først
+  let res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password })
+  });
+
+  // Hvis ikke ok, prøv register
+  if (!res.ok) {
+    res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+  }
+
+  if (!res.ok) {
+    const msg = await res.text();
+    alert(msg || "Kunne ikke logge inn / registrere.");
+    return;
+  }
+
+  const data = await res.json(); // { token: "..." }
+  setToken(data.token);
+}
+
+// --- din app-kode ---
 let currentFilter = "ALL";
 
 const listEl = document.getElementById("list");
@@ -26,7 +99,7 @@ form.addEventListener("submit", async (e) => {
     deadline: data.get("deadline")
   };
 
-  const res = await fetch("/api/apps", {
+  const res = await apiFetch("/api/apps", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -67,16 +140,30 @@ function isOverdue(deadline, status) {
 }
 
 async function updateStatus(id, status) {
-  await fetch(`/api/apps/${id}/status`, {
+  const res = await apiFetch(`/api/apps/${id}/status`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status })
   });
+
+  if (!res.ok) {
+    const text = await res.text();
+    alert(text || "Kunne ikke oppdatere status");
+    return;
+  }
+
   await load();
 }
 
 async function removeItem(id) {
-  await fetch(`/api/apps/${id}`, { method: "DELETE" });
+  const res = await apiFetch(`/api/apps/${id}`, { method: "DELETE" });
+
+  if (!res.ok && res.status !== 204) {
+    const text = await res.text();
+    alert(text || "Kunne ikke slette");
+    return;
+  }
+
   await load();
 }
 
@@ -139,7 +226,12 @@ function render(apps) {
 }
 
 async function load() {
-  const res = await fetch("/api/apps");
+  const res = await apiFetch("/api/apps");
+  if (!res.ok) {
+    const text = await res.text();
+    alert(text || "Kunne ikke laste søknader");
+    return;
+  }
   const apps = await res.json();
   render(apps);
 }
@@ -152,4 +244,5 @@ function escapeHtml(str) {
     .replaceAll('"',"&quot;");
 }
 
-load();
+// Start: sørg for innlogging først, så last data
+ensureLoggedIn().then(load);

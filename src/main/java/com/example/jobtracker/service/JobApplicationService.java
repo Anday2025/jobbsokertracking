@@ -1,5 +1,6 @@
 package com.example.jobtracker.service;
 
+import org.springframework.security.core.context.SecurityContextHolder;
 import com.example.jobtracker.model.JobApplication;
 import com.example.jobtracker.model.Status;
 import com.example.jobtracker.repository.JobApplicationRepository;
@@ -27,6 +28,13 @@ public class JobApplicationService {
                 ))
                 .toList();
     }
+
+    private String currentEmail() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return principal.toString();
+    }
+
+
 
     public JobApplication create(String company, String role, String link, LocalDate deadline) {
         JobApplication app = new JobApplication();
