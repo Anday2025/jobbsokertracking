@@ -7,38 +7,50 @@
     <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-<header class="container">
-    <h1>Jobbsøker-tracker</h1>
-    <p class="muted">Hold oversikt over søknadene dine.</p>
+<header class="container header">
+    <div>
+        <h1>Jobbsøker-tracker</h1>
+        <p class="muted">Hold oversikt over søknadene dine.</p>
+    </div>
+
+    <div class="authbar">
+        <span id="whoami" class="pill">Ikke innlogget</span>
+        <button id="logoutBtn" class="ghost hidden">Logg ut</button>
+    </div>
 </header>
 
 <main class="container grid">
-    <section class="card">
-        <h2>Ny søknad</h2>
-        <form id="createForm" class="form">
+    <!-- AUTH CARD -->
+    <section class="card" id="authCard">
+        <h2>Logg inn</h2>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="login">Logg inn</button>
+            <button class="tab" data-tab="register">Registrer</button>
+        </div>
+
+        <form id="authForm" class="form">
             <label>
-                Firma *
-                <input name="company" required placeholder="F.eks. DNB / Telenor" />
-            </label>
-            <label>
-                Stilling *
-                <input name="role" required placeholder="F.eks. Junior utvikler" />
-            </label>
-            <label>
-                Link
-                <input name="link" placeholder="https://..." />
-            </label>
-            <label>
-                Frist
-                <input name="deadline" type="date" />
+                E-post
+                <input id="authEmail" type="email" required placeholder="navn@epost.no" autocomplete="email" />
             </label>
 
-            <button type="submit">Legg til</button>
-            <div id="formMsg" class="msg"></div>
+            <label>
+                Passord
+                <input id="authPassword" type="password" required placeholder="Minst 6 tegn" autocomplete="current-password" />
+            </label>
+
+            <button type="submit" id="authSubmitBtn">Logg inn</button>
+            <div id="authMsg" class="msg"></div>
         </form>
+
+        <div class="muted small" style="margin-top:10px">
+            Tips: Bruk en e-post du husker. Passord lagres hash’et (BCrypt) i databasen.
+        </div>
     </section>
 
-    <section class="card">
+    <!-- APP CARD -->
+    <section class="card hidden" id="appCard">
         <div class="row">
             <h2>Søknader</h2>
             <div class="pill" id="stats">—</div>
@@ -53,12 +65,42 @@
             <button class="filter" data-filter="TILBUD">Tilbud</button>
         </div>
 
-        <div id="list" class="list"></div>
+        <div class="split">
+            <section class="subcard">
+                <h3>Ny søknad</h3>
+                <form id="createForm" class="form">
+                    <label>
+                        Firma *
+                        <input name="company" required placeholder="F.eks. NAV / Telenor" />
+                    </label>
+                    <label>
+                        Stilling *
+                        <input name="role" required placeholder="F.eks. Junior utvikler" />
+                    </label>
+                    <label>
+                        Link
+                        <input name="link" placeholder="https://..." />
+                    </label>
+                    <label>
+                        Frist
+                        <input name="deadline" type="date" />
+                    </label>
+
+                    <button type="submit">Legg til</button>
+                    <div id="formMsg" class="msg"></div>
+                </form>
+            </section>
+
+            <section class="subcard">
+                <h3>Liste</h3>
+                <div id="list" class="list"></div>
+            </section>
+        </div>
     </section>
 </main>
 
 <footer class="container muted small">
-    Bygget med Java (Spring Boot) + vanilla JS.
+    Bygget med Java (Spring Boot) + vanilla JS + JWT.
 </footer>
 
 <script src="app.js"></script>

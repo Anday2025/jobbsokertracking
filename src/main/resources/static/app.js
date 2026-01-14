@@ -1,83 +1,117 @@
 // --- JWT helpers ---
 const TOKEN_KEY = "jwt_token";
+let authMode = "login"; // "login" | "register"
 
-function setToken(token) {
-  localStorage.setItem(TOKEN_KEY, token);
-}
-
-function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
-}
-
-function clearToken() {
-  localStorage.removeItem(TOKEN_KEY);
-}
+function setToken(token) { localStorage.setItem(TOKEN_KEY, token); }
+function getToken() { return localStorage.getItem(TOKEN_KEY); }
+function clearToken() { localStorage.removeItem(TOKEN_KEY); }
 
 function authHeaders() {
   const token = getToken();
   return token ? { "Authorization": `Bearer ${token}` } : {};
 }
 
-// Wrapper rundt fetch som alltid legger på Authorization-header og håndterer 401
 async function apiFetch(url, options = {}) {
-  const headers = {
-    ...(options.headers || {}),
-    ...authHeaders()
-  };
-
+  const headers = { ...(options.headers || {}), ...authHeaders() };
   const res = await fetch(url, { ...options, headers });
 
   if (res.status === 401) {
     clearToken();
-    alert("Sesjonen din er utløpt eller du er ikke logget inn. Logg inn på nytt.");
-    location.reload();
+    setLoggedOutUI("Du må logge inn.");
   }
-
   return res;
 }
 
-// Midlertidig login/register uten UI (kun for testing)
-async function ensureLoggedIn() {
-  if (getToken()) return;
-
-  const email = prompt("Email:");
-  const password = prompt("Passord (min 6 tegn):");
-  if (!email || !password) return;
-
-  // Prøv login først
-  let res = await fetch("/api/auth/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password })
-  });
-
-  // Hvis ikke ok, prøv register
-  if (!res.ok) {
-    res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
-    });
+function parseJwtEmail(token) {
+  // JWT payload er base64url. Dette er kun for å vise e-post i UI (ikke for sikkerhet).
+  try {
+    const payload = token.split(".")[1];
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const json = decodeURIComponent(atob(base64).split("").map(c => `%${("00"+c.charCodeAt(0).toString(16)).slice(-2)}`).join(""));
+    return JSON.parse(json).sub || "Innlogget";
+  } catch {
+    return "Innlogget";
   }
-
-  if (!res.ok) {
-    const msg = await res.text();
-    alert(msg || "Kunne ikke logge inn / registrere.");
-    return;
-  }
-
-  const data = await res.json(); // { token: "..." }
-  setToken(data.token);
 }
 
-// --- din app-kode ---
-let currentFilter = "ALL";
+// --- DOM ---
+const whoamiEl = document.getElementById("whoami");
+const logoutBtn = document.getElementById("logoutBtn");
 
+const authCard = document.getElementById("authCard");
+const authForm = document.getElementById("authForm");
+const authEmail = document.getElementById("authEmail");
+const authPassword = document.getElementById("authPassword");
+const authMsg = document.getElementById("authMsg");
+const authSubmitBtn = document.getElementById("authSubmitBtn");
+
+const appCard = document.getElementById("appCard");
+
+let currentFilter = "ALL";
 const listEl = document.getElementById("list");
 const statsEl = document.getElementById("stats");
 const form = document.getElementById("createForm");
 const formMsg = document.getElementById("formMsg");
 
+// --- Tabs (login/register) ---
+document.querySelectorAll(".tab").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    authMode = btn.dataset.tab;
+    authMsg.textContent = "";
+
+    if (authMode === "login") {
+      authSubmitBtn.textContent = "Logg inn";
+      authPassword.autocomplete = "current-password";
+      document.querySelector("#authCard h2").textContent = "Logg inn";
+    } else {
+      authSubmitBtn.textContent = "Registrer";
+      authPassword.autocomplete = "new-password";
+      document.querySelector("#authCard h2").textContent = "Registrer";
+    }
+  });
+});
+
+// --- Auth submit ---
+authForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  authMsg.textContent = "";
+
+  const email = (authEmail.value || "").trim().toLowerCase();
+  const password = authPassword.value || "";
+
+  if (!email || !password || password.length < 6) {
+    authMsg.textContent = "Skriv inn gyldig e-post og passord (minst 6 tegn).";
+    return;
+  }
+
+  const endpoint = authMode === "login" ? "/api/auth/login" : "/api/auth/register";
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password })
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    authMsg.textContent = text || "Kunne ikke autentisere.";
+    return;
+  }
+
+  const data = await res.json(); // { token: "..." }
+  setToken(data.token);
+  setLoggedInUI();
+  await load();
+});
+
+logoutBtn.addEventListener("click", () => {
+  clearToken();
+  setLoggedOutUI("Du er logget ut.");
+});
+
+// --- App filters ---
 document.querySelectorAll(".filter").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".filter").forEach(b => b.classList.remove("active"));
@@ -87,6 +121,7 @@ document.querySelectorAll(".filter").forEach(btn => {
   });
 });
 
+// --- Create form ---
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   formMsg.textContent = "";
@@ -115,6 +150,7 @@ form.addEventListener("submit", async (e) => {
   await load();
 });
 
+// --- Helpers ---
 function badge(status) {
   const map = {
     PLANLAGT: "Planlagt",
@@ -145,25 +181,21 @@ async function updateStatus(id, status) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status })
   });
-
   if (!res.ok) {
     const text = await res.text();
     alert(text || "Kunne ikke oppdatere status");
     return;
   }
-
   await load();
 }
 
 async function removeItem(id) {
   const res = await apiFetch(`/api/apps/${id}`, { method: "DELETE" });
-
   if (!res.ok && res.status !== 204) {
     const text = await res.text();
     alert(text || "Kunne ikke slette");
     return;
   }
-
   await load();
 }
 
@@ -213,7 +245,6 @@ function render(apps) {
         </div>
       </div>
     `;
-
     listEl.appendChild(el);
   }
 
@@ -227,11 +258,7 @@ function render(apps) {
 
 async function load() {
   const res = await apiFetch("/api/apps");
-  if (!res.ok) {
-    const text = await res.text();
-    alert(text || "Kunne ikke laste søknader");
-    return;
-  }
+  if (!res.ok) return;
   const apps = await res.json();
   render(apps);
 }
@@ -244,5 +271,33 @@ function escapeHtml(str) {
     .replaceAll('"',"&quot;");
 }
 
-// Start: sørg for innlogging først, så last data
-ensureLoggedIn().then(load);
+// --- UI state ---
+function setLoggedInUI() {
+  const token = getToken();
+  const email = token ? parseJwtEmail(token) : "Innlogget";
+  whoamiEl.textContent = email;
+  logoutBtn.classList.remove("hidden");
+
+  authCard.classList.add("hidden");
+  appCard.classList.remove("hidden");
+}
+
+function setLoggedOutUI(message) {
+  whoamiEl.textContent = "Ikke innlogget";
+  logoutBtn.classList.add("hidden");
+
+  authCard.classList.remove("hidden");
+  appCard.classList.add("hidden");
+
+  if (message) authMsg.textContent = message;
+}
+
+// --- Init ---
+(function init() {
+  if (getToken()) {
+    setLoggedInUI();
+    load();
+  } else {
+    setLoggedOutUI("");
+  }
+})();
