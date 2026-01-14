@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="no">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Jobbsøker-tracker</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header class="container">
+    <h1>Jobbsøker-tracker</h1>
+    <p class="muted">Hold oversikt over søknadene dine.</p>
+</header>
+
+<main class="container grid">
+    <section class="card">
+        <h2>Ny søknad</h2>
+        <form id="createForm" class="form">
+            <label>
+                Firma *
+                <input name="company" required placeholder="F.eks. DNB / Telenor" />
+            </label>
+            <label>
+                Stilling *
+                <input name="role" required placeholder="F.eks. Junior utvikler" />
+            </label>
+            <label>
+                Link
+                <input name="link" placeholder="https://..." />
+            </label>
+            <label>
+                Frist
+                <input name="deadline" type="date" />
+            </label>
+
+            <button type="submit">Legg til</button>
+            <div id="formMsg" class="msg"></div>
+        </form>
+    </section>
+
+    <section class="card">
+        <div class="row">
+            <h2>Søknader</h2>
+            <div class="pill" id="stats">—</div>
+        </div>
+
+        <div class="filters">
+            <button class="filter active" data-filter="ALL">Alle</button>
+            <button class="filter" data-filter="PLANLAGT">Planlagt</button>
+            <button class="filter" data-filter="SOKT">Søkt</button>
+            <button class="filter" data-filter="INTERVJU">Intervju</button>
+            <button class="filter" data-filter="AVSLATT">Avslått</button>
+            <button class="filter" data-filter="TILBUD">Tilbud</button>
+        </div>
+
+        <div id="list" class="list"></div>
+    </section>
+</main>
+
+<footer class="container muted small">
+    Bygget med Java (Spring Boot) + vanilla JS.
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
