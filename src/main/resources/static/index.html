@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="styles.css" />
 </head>
 
-<body>
+<body class="locked">
 <div class="bg"></div>
 
 <header class="container header">
@@ -17,20 +17,17 @@
     </div>
 
     <div class="headerRight">
-        <!-- When logged out -->
         <button id="loginBtn" class="btn ghost" type="button">Logg inn</button>
 
-        <!-- When logged in -->
-        <span id="whoami" class="pill hidden">user@email.com</span>
+        <span id="whoami" class="pill hidden"></span>
         <button id="logoutBtn" class="btn ghost hidden" type="button">Logg ut</button>
 
-        <!-- Always -->
         <button id="langBtn" class="btn ghost" type="button">NO/EN</button>
     </div>
 </header>
 
 <main class="container grid">
-    <!-- LEFT: create -->
+    <!-- LEFT -->
     <section class="card">
         <h2 id="t_newTitle">Ny søknad</h2>
 
@@ -64,7 +61,7 @@
         </div>
     </section>
 
-    <!-- RIGHT: list -->
+    <!-- RIGHT -->
     <section class="card">
         <div class="row">
             <h2 id="t_appsTitle">Søknader</h2>
@@ -80,7 +77,9 @@
             <button class="filter" data-filter="TILBUD" id="t_f_offer">Tilbud</button>
         </div>
 
-        <div id="list" class="list"></div>
+        <div id="list" class="list">
+            <div class="muted" id="emptyText">Ingen treff. Logg inn for å se dine søknader.</div>
+        </div>
     </section>
 </main>
 
