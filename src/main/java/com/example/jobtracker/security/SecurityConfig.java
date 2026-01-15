@@ -2,7 +2,9 @@ package com.example.jobtracker.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,42 +26,44 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http) {
         http
                 // API + JWT: ingen csrf
-                .csrf(csrf -> csrf.disable())
+                .csrf(AbstractHttpConfigurer::disable)
+
+                // CORS: la Spring bruke CorsConfigurationSource (hvis du har bean)
+                .cors(cors -> {})
 
                 // JWT = stateless
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                // Viktig: ikke Basic Auth (popup)
-                // .httpBasic(Customizer.withDefaults())  <-- IKKE ha denne
+                // IKKE Basic Auth (ellers får du browser-popup)
+                .httpBasic(AbstractHttpConfigurer::disable)
+
+                // IKKE form-login
+                .formLogin(AbstractHttpConfigurer::disable)
 
                 .authorizeHttpRequests(auth -> auth
-                        // Statiske filer (frontend)
+                        // Preflight requests for CORS
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                        // Statiske filer + feilside (viktig for favicon/404)
                         .requestMatchers(
                                 "/",
                                 "/index.html",
                                 "/styles.css",
                                 "/app.js",
                                 "/favicon.ico",
-                                "/*.css",
-                                "/*.js",
-                                "/*.png",
-                                "/*.jpg",
-                                "/*.jpeg",
-                                "/*.svg",
-                                "/*.webp",
-                                "/*.ico",
+                                "/error",
                                 "/**/*.css",
                                 "/**/*.js",
+                                "/**/*.map",
                                 "/**/*.png",
                                 "/**/*.jpg",
                                 "/**/*.jpeg",
                                 "/**/*.svg",
                                 "/**/*.webp",
-                                "/**/*.ico",
-                                "/**/*.map"
+                                "/**/*.ico"
                         ).permitAll()
 
                         // Auth-endpoints åpne
@@ -69,7 +73,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
 
-                // Sørg for 401 uten Basic popup
+                // 401 uten redirect/popup
                 .exceptionHandling(e -> e.authenticationEntryPoint((req, res, ex) -> {
                     res.setStatus(401);
                     res.setContentType("text/plain; charset=utf-8");
