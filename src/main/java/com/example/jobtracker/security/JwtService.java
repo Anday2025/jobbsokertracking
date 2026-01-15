@@ -1,4 +1,4 @@
-package com.example.jobtracker.security;
+/*package com.example.jobtracker.security;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -41,3 +41,4 @@ public class JwtService {
                 .getSubject();
     }
 }
+*/

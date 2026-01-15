@@ -1,4 +1,4 @@
-package com.example.jobtracker.security;
+/*package com.example.jobtracker.security;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -45,3 +45,4 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 }
+*/

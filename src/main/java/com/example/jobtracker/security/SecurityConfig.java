@@ -4,21 +4,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 public class SecurityConfig {
-
-    private final JwtAuthFilter jwtAuthFilter;
-
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
-        this.jwtAuthFilter = jwtAuthFilter;
-    }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -26,28 +18,23 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) {
+    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // API + JWT: ingen csrf
-                .csrf(AbstractHttpConfigurer::disable)
+                .csrf(csrf -> csrf.disable()) // enklest nå (kan aktiveres senere)
+                .cors(cors -> {})             // ok selv om du ikke har egen CORS bean
 
-                // CORS: la Spring bruke CorsConfigurationSource (hvis du har bean)
-                .cors(cors -> {})
+                // ✅ Sessions på (ikke STATELESS)
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
 
-                // JWT = stateless
-                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                // IKKE Basic Auth (ellers får du browser-popup)
-                .httpBasic(AbstractHttpConfigurer::disable)
-
-                // IKKE form-login
-                .formLogin(AbstractHttpConfigurer::disable)
+                // ✅ IKKE basic auth og IKKE formLogin (da slipper du popup og redirect)
+                .httpBasic(b -> b.disable())
+                .formLogin(f -> f.disable())
 
                 .authorizeHttpRequests(auth -> auth
-                        // Preflight requests for CORS
+                        // preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // Statiske filer + feilside (viktig for favicon/404)
+                        // statiske filer + error
                         .requestMatchers(
                                 "/",
                                 "/index.html",
@@ -66,22 +53,22 @@ public class SecurityConfig {
                                 "/**/*.ico"
                         ).permitAll()
 
-                        // Auth-endpoints åpne
+                        // auth endpoints åpne
                         .requestMatchers("/api/auth/**").permitAll()
 
-                        // Alt annet krever JWT
+                        // alt annet krever login (session)
                         .anyRequest().authenticated()
                 )
 
-                // 401 uten redirect/popup
+                // ✅ 401 uten popup
                 .exceptionHandling(e -> e.authenticationEntryPoint((req, res, ex) -> {
                     res.setStatus(401);
                     res.setContentType("text/plain; charset=utf-8");
                     res.getWriter().write("Unauthorized");
                 }))
 
-                // JWT-filter før UsernamePasswordAuthenticationFilter
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                // ✅ logout endpoint (optional, vi lager også controller endpoint)
+                .logout(l -> l.logoutUrl("/api/auth/logout"));
 
         return http.build();
     }

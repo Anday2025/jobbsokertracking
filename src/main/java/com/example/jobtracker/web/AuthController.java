@@ -1,4 +1,4 @@
-package com.example.jobtracker.web;
+/*package com.example.jobtracker.web;
 
 import com.example.jobtracker.model.User;
 import com.example.jobtracker.repository.UserRepository;
@@ -57,3 +57,4 @@ public class AuthController {
         return ResponseEntity.ok(new AuthResponse(jwt.createToken(email)));
     }
 }
+*/
