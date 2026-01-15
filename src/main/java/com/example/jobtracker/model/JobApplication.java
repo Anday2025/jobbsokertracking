@@ -1,5 +1,6 @@
 package com.example.jobtracker.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.LocalDate;
 
@@ -23,6 +24,7 @@ public class JobApplication {
 
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
+    @JsonIgnore
     private User user;
 
     public JobApplication() {}
@@ -45,6 +47,7 @@ public class JobApplication {
     public Status getStatus() { return status; }
     public void setStatus(Status status) { this.status = status; }
 
+    // user brukes internt for sikkerhet/ownership, men skjules i JSON
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
 }
