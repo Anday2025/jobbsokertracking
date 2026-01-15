@@ -1,401 +1,652 @@
-let currentFilter = "ALL";
+/*  app.js  (B1: HttpOnly SESSION-cookie)
+    - Backend setter cookie "SESSION" på /api/auth/login (HttpOnly)
+    - Frontend bruker fetch(..., { credentials: "include" }) for ALLE API-kall
+    - INGEN localStorage token
+*/
 
-// ---------- ELEMENTS ----------
-const listEl = document.getElementById("list");
-const statsEl = document.getElementById("stats");
-const form = document.getElementById("createForm");
-const formMsg = document.getElementById("formMsg");
+(() => {
+  // -----------------------------
+  // Config
+  // -----------------------------
+  const API = {
+    login: "/api/auth/login",
+    register: "/api/auth/register",
+    me: "/api/auth/me",
+    logout: "/api/auth/logout",
+    apps: "/api/apps",
+  };
 
-const loginBtn = document.getElementById("loginBtn");
-const logoutBtn = document.getElementById("logoutBtn");
-const whoamiEl = document.getElementById("whoami");
-const langBtn = document.getElementById("langBtn");
+  // -----------------------------
+  // DOM helpers
+  // -----------------------------
+  const $ = (id) => document.getElementById(id);
+  const show = (el) => el && el.classList.remove("hidden");
+  const hide = (el) => el && el.classList.add("hidden");
 
-const authModal = document.getElementById("authModal");
-const closeAuth = document.getElementById("closeAuth");
-const authForm = document.getElementById("authForm");
-const authEmail = document.getElementById("authEmail");
-const authPassword = document.getElementById("authPassword");
-const authTitle = document.getElementById("authTitle");
-const authSubmitBtn = document.getElementById("authSubmitBtn");
-const toggleAuthMode = document.getElementById("toggleAuthMode");
-const authMsg = document.getElementById("authMsg");
+  // Header
+  const loginBtn = $("loginBtn");
+  const logoutBtn = $("logoutBtn");
+  const whoami = $("whoami");
+  const langBtn = $("langBtn");
 
-// ---------- I18N (NO/EN) ----------
-const I18N = {
-  no: {
-    title: "Jobbsøker-tracker",
-    subtitle: "Hold oversikt over søknadene dine.",
-    login: "Logg inn",
-    logout: "Logg ut",
-    createUser: "Opprett bruker",
-    email: "E-post",
-    password: "Passord",
-    newApp: "Ny søknad",
-    apps: "Søknader",
-    add: "Legg til",
-    emptyLogin: "Ingen treff. Logg inn for å se dine søknader.",
-    hint: "Logg inn for å lagre og se dine søknader.",
-    filters: { ALL:"Alle", PLANLAGT:"Planlagt", SOKT:"Søkt", INTERVJU:"Intervju", AVSLATT:"Avslått", TILBUD:"Tilbud" },
-    labels: { company:"Firma *", role:"Stilling *", link:"Link", deadline:"Frist" },
-    ph: { company:"F.eks. NAV / Telenor", role:"F.eks. Junior utvikler", link:"https://..." }
-  },
-  en: {
-    title: "Job Tracker",
-    subtitle: "Keep track of your job applications.",
-    login: "Sign in",
-    logout: "Sign out",
-    createUser: "Create account",
-    email: "Email",
-    password: "Password",
-    newApp: "New application",
-    apps: "Applications",
-    add: "Add",
-    emptyLogin: "No results. Sign in to see your applications.",
-    hint: "Sign in to save and view your applications.",
-    filters: { ALL:"All", PLANLAGT:"Planned", SOKT:"Applied", INTERVJU:"Interview", AVSLATT:"Rejected", TILBUD:"Offer" },
-    labels: { company:"Company *", role:"Role *", link:"Link", deadline:"Deadline" },
-    ph: { company:"e.g. DNB / Telenor", role:"e.g. Junior developer", link:"https://..." }
+  // Modal
+  const authModal = $("authModal");
+  const closeAuth = $("closeAuth");
+  const authTitle = $("authTitle");
+  const authForm = $("authForm");
+  const authEmail = $("authEmail");
+  const authPassword = $("authPassword");
+  const authSubmitBtn = $("authSubmitBtn");
+  const toggleAuthMode = $("toggleAuthMode");
+  const authMsg = $("authMsg");
+
+  // App UI
+  const createForm = $("createForm");
+  const formMsg = $("formMsg");
+  const listEl = $("list");
+  const statsEl = $("stats");
+  const emptyLogin = $("t_emptyLogin");
+  const loginHint = $("t_loginHint");
+
+  // Filters
+  const filterBtns = Array.from(document.querySelectorAll(".filter"));
+
+  // -----------------------------
+  // State
+  // -----------------------------
+  let authedEmail = null;
+  let mode = "login"; // "login" | "register"
+  let currentFilter = "ALL";
+  let appsCache = [];
+
+  // -----------------------------
+  // i18n (NO/EN) with localStorage
+  // -----------------------------
+  const I18N_KEY = "jobtracker_lang";
+  const dict = {
+    no: {
+      title: "Jobbsøker-tracker",
+      subtitle: "Hold oversikt over søknadene dine.",
+      login: "Logg inn",
+      logout: "Logg ut",
+      notLoggedIn: "Ikke innlogget",
+      newApp: "Ny søknad",
+      apps: "Søknader",
+      add: "Legg til",
+      company: "Firma *",
+      role: "Stilling *",
+      link: "Link",
+      deadline: "Frist",
+      all: "Alle",
+      planned: "Planlagt",
+      applied: "Søkt",
+      interview: "Intervju",
+      rejected: "Avslått",
+      offer: "Tilbud",
+      emptyLogin: "Ingen treff. Logg inn for å se dine søknader.",
+      loginHint: "Logg inn for å lagre og se dine søknader.",
+      createUser: "Opprett bruker",
+      password: "Passord",
+      email: "E-post",
+      registerTitle: "Opprett bruker",
+      loginFailed: "Innlogging feilet.",
+      registerOk: "Bruker opprettet. Du kan logge inn nå.",
+      registerFailed: "Registrering feilet.",
+      addFailed: "Kunne ikke lagre søknaden.",
+      deleteFailed: "Kunne ikke slette.",
+      updateFailed: "Kunne ikke oppdatere.",
+    },
+    en: {
+      title: "Job search tracker",
+      subtitle: "Keep track of your applications.",
+      login: "Sign in",
+      logout: "Sign out",
+      notLoggedIn: "Not signed in",
+      newApp: "New application",
+      apps: "Applications",
+      add: "Add",
+      company: "Company *",
+      role: "Role *",
+      link: "Link",
+      deadline: "Deadline",
+      all: "All",
+      planned: "Planned",
+      applied: "Applied",
+      interview: "Interview",
+      rejected: "Rejected",
+      offer: "Offer",
+      emptyLogin: "No results. Sign in to see your applications.",
+      loginHint: "Sign in to save and view your applications.",
+      createUser: "Create account",
+      password: "Password",
+      email: "Email",
+      registerTitle: "Create account",
+      loginFailed: "Sign in failed.",
+      registerOk: "Account created. You can sign in now.",
+      registerFailed: "Registration failed.",
+      addFailed: "Could not save application.",
+      deleteFailed: "Could not delete.",
+      updateFailed: "Could not update.",
+    },
+  };
+
+  function getLang() {
+    const saved = localStorage.getItem(I18N_KEY);
+    return saved === "en" ? "en" : "no";
   }
-};
 
-const LANG_KEY = "jt_lang";
-let lang = localStorage.getItem(LANG_KEY) || "no";
-
-function t() { return I18N[lang]; }
-
-function applyLang() {
-  document.documentElement.lang = lang;
-
-  document.getElementById("t_title").textContent = t().title;
-  document.getElementById("t_subtitle").textContent = t().subtitle;
-
-  loginBtn.textContent = t().login;
-  logoutBtn.textContent = t().logout;
-  langBtn.textContent = (lang === "no") ? "NO/EN" : "EN/NO";
-
-  document.getElementById("t_newAppTitle").textContent = t().newApp;
-  document.getElementById("t_appsTitle").textContent = t().apps;
-  document.getElementById("t_addBtn").textContent = t().add;
-  document.getElementById("t_emptyLogin").textContent = t().emptyLogin;
-  document.getElementById("t_loginHint").textContent = t().hint;
-
-  document.getElementById("t_companyLabel").textContent = t().labels.company;
-  document.getElementById("t_roleLabel").textContent = t().labels.role;
-  document.getElementById("t_linkLabel").textContent = t().labels.link;
-  document.getElementById("t_deadlineLabel").textContent = t().labels.deadline;
-
-  document.getElementById("t_companyPh").placeholder = t().ph.company;
-  document.getElementById("t_rolePh").placeholder = t().ph.role;
-  document.getElementById("t_linkPh").placeholder = t().ph.link;
-
-  document.getElementById("t_f_all").textContent = t().filters.ALL;
-  document.getElementById("t_f_planned").textContent = t().filters.PLANLAGT;
-  document.getElementById("t_f_applied").textContent = t().filters.SOKT;
-  document.getElementById("t_f_interview").textContent = t().filters.INTERVJU;
-  document.getElementById("t_f_rejected").textContent = t().filters.AVSLATT;
-  document.getElementById("t_f_offer").textContent = t().filters.TILBUD;
-
-  authEmail.placeholder = t().email;
-  authPassword.placeholder = t().password;
-
-  // auth modal texts depend on mode:
-  updateAuthTexts();
-}
-
-langBtn.addEventListener("click", () => {
-  lang = (lang === "no") ? "en" : "no";
-  localStorage.setItem(LANG_KEY, lang);
-  applyLang();
-});
-
-// ---------- MODAL OPEN/CLOSE ----------
-function openModal() {
-  authMsg.textContent = "";
-  authMsg.classList.remove("ok");
-  authModal.classList.remove("hidden");
-  document.body.classList.add("modalOpen");
-  authEmail.focus();
-}
-function closeModal() {
-  authModal.classList.add("hidden");
-  document.body.classList.remove("modalOpen");
-}
-
-loginBtn.addEventListener("click", openModal);
-closeAuth.addEventListener("click", closeModal);
-authModal.addEventListener("click", (e) => {
-  if (e.target === authModal) closeModal();
-});
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !authModal.classList.contains("hidden")) closeModal();
-});
-
-// ---------- AUTH MODE (login/register) ----------
-let authMode = "login"; // "login" | "register"
-
-function updateAuthTexts() {
-  if (authMode === "login") {
-    authTitle.textContent = t().login;
-    authSubmitBtn.textContent = t().login;
-    toggleAuthMode.textContent = t().createUser;
-  } else {
-    authTitle.textContent = t().createUser;
-    authSubmitBtn.textContent = t().createUser;
-    toggleAuthMode.textContent = t().login;
+  function setLang(next) {
+    localStorage.setItem(I18N_KEY, next);
+    applyLang();
   }
-}
 
-toggleAuthMode.addEventListener("click", () => {
-  authMode = (authMode === "login") ? "register" : "login";
-  authMsg.textContent = "";
-  authMsg.classList.remove("ok");
-  updateAuthTexts();
-});
+  function t(key) {
+    const lang = getLang();
+    return dict[lang][key] ?? key;
+  }
 
-// ---------- FETCH HELPERS (COOKIE!) ----------
-async function api(path, options = {}) {
-  const res = await fetch(path, {
-    ...options,
-    credentials: "include", // 👈 cookie sendes alltid
-    headers: {
-      ...(options.headers || {}),
-      "Content-Type": options.body ? "application/json" : (options.headers?.["Content-Type"] || undefined)
+  function applyLang() {
+    const lang = getLang();
+
+    // Toggle button label
+    langBtn.textContent = lang === "no" ? "NO/EN" : "EN/NO";
+
+    // Static text elements that exist in HTML via ids
+    const map = [
+      ["t_title", "title"],
+      ["t_subtitle", "subtitle"],
+      ["t_newAppTitle", "newApp"],
+      ["t_appsTitle", "apps"],
+      ["t_companyLabel", "company"],
+      ["t_roleLabel", "role"],
+      ["t_linkLabel", "link"],
+      ["t_deadlineLabel", "deadline"],
+      ["t_addBtn", "add"],
+      ["t_f_all", "all"],
+      ["t_f_planned", "planned"],
+      ["t_f_applied", "applied"],
+      ["t_f_interview", "interview"],
+      ["t_f_rejected", "rejected"],
+      ["t_f_offer", "offer"],
+      ["t_emptyLogin", "emptyLogin"],
+      ["t_loginHint", "loginHint"],
+    ];
+    map.forEach(([id, key]) => {
+      const el = $(id);
+      if (el) el.textContent = t(key);
+    });
+
+    // Header buttons
+    loginBtn.textContent = t("login");
+    logoutBtn.textContent = t("logout");
+
+    // Modal
+    authEmail.placeholder = t("email");
+    authPassword.placeholder = t("password");
+    if (mode === "login") {
+      authTitle.textContent = t("login");
+      authSubmitBtn.textContent = t("login");
+      toggleAuthMode.textContent = t("createUser");
+    } else {
+      authTitle.textContent = t("registerTitle");
+      authSubmitBtn.textContent = t("createUser");
+      toggleAuthMode.textContent = t("login");
     }
-  });
-  return res;
-}
 
-// ---------- AUTH REQUESTS ----------
-async function fetchMe() {
-  const res = await api("/api/auth/me");
-  if (!res.ok) return null;
-  return await res.json();
-}
-
-async function setLoggedInUI(email) {
-  whoamiEl.textContent = email;
-  whoamiEl.classList.remove("hidden");
-  logoutBtn.classList.remove("hidden");
-  loginBtn.classList.add("hidden");
-}
-
-function setLoggedOutUI() {
-  whoamiEl.textContent = "—";
-  whoamiEl.classList.add("hidden");
-  logoutBtn.classList.add("hidden");
-  loginBtn.classList.remove("hidden");
-
-  statsEl.textContent = "—";
-  listEl.innerHTML = `<div class="muted" id="t_emptyLogin">${t().emptyLogin}</div>`;
-}
-
-logoutBtn.addEventListener("click", async () => {
-  await api("/api/auth/logout", { method: "POST" });
-  setLoggedOutUI();
-});
-
-// submit login/register
-authForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  authMsg.textContent = "";
-  authMsg.classList.remove("ok");
-
-  const payload = {
-    email: authEmail.value.trim(),
-    password: authPassword.value
-  };
-
-  const endpoint = (authMode === "login") ? "/api/auth/login" : "/api/auth/register";
-
-  const res = await api(endpoint, {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    authMsg.textContent = text || (authMode === "login" ? "Innlogging feilet." : "Registrering feilet.");
-    return;
+    // Whoami
+    if (!authedEmail) {
+      whoami.textContent = t("notLoggedIn");
+    }
   }
 
-  if (authMode === "register") {
-    authMsg.textContent = (lang === "no")
-      ? "Bruker opprettet. Du kan nå logge inn."
-      : "Account created. You can sign in now.";
-    authMsg.classList.add("ok");
-    authMode = "login";
-    updateAuthTexts();
-    return;
+  // -----------------------------
+  // Modal open/close
+  // -----------------------------
+  function openAuthModal() {
+    authMsg.textContent = "";
+    authMsg.classList.remove("ok");
+    authModal.classList.remove("hidden");
+    document.body.classList.add("modalOpen");
+    setTimeout(() => authEmail.focus(), 50);
   }
 
-  // login ok -> sjekk /me (cookie må fungere)
-  const me = await fetchMe();
-  if (!me || !me.email) {
-    authMsg.textContent = "Innlogging feilet. Token ble ikke akseptert (/api/auth/me).";
-    return;
+  function closeAuthModal() {
+    authModal.classList.add("hidden");
+    document.body.classList.remove("modalOpen");
+    authMsg.textContent = "";
+    authMsg.classList.remove("ok");
   }
 
-  authMsg.textContent = "OK";
-  authMsg.classList.add("ok");
+  // -----------------------------
+  // API helper (IMPORTANT for cookies)
+  // -----------------------------
+  async function apiFetch(path, options = {}) {
+    const opts = {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+      credentials: "include", // 👈 send/receive SESSION cookie
+    };
 
-  await setLoggedInUI(me.email);
-  closeModal();
-  await load(); // load apps
-});
+    const res = await fetch(path, opts);
 
-// ---------- EXISTING APP LOGIC ----------
-document.querySelectorAll(".filter").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".filter").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    currentFilter = btn.dataset.filter;
-    load();
-  });
-});
+    // Try parse JSON if any
+    const contentType = res.headers.get("content-type") || "";
+    let data = null;
+    if (contentType.includes("application/json")) {
+      try {
+        data = await res.json();
+      } catch (_) {
+        data = null;
+      }
+    } else {
+      // read text to show in errors
+      try {
+        data = await res.text();
+      } catch (_) {
+        data = null;
+      }
+    }
 
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  formMsg.textContent = "";
-  formMsg.classList.remove("ok");
+    if (!res.ok) {
+      const err = new Error(typeof data === "string" ? data : "Request failed");
+      err.status = res.status;
+      err.data = data;
+      throw err;
+    }
 
-  const data = new FormData(form);
-  const payload = {
-    company: data.get("company"),
-    role: data.get("role"),
-    link: data.get("link"),
-    deadline: data.get("deadline")
-  };
-
-  const res = await api("/api/apps", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    formMsg.textContent = text || "Noe gikk galt";
-    return;
+    return data;
   }
 
-  form.reset();
-  await load();
-});
-
-function badge(status) {
-  const mapNo = { PLANLAGT:"Planlagt", SOKT:"Søkt", INTERVJU:"Intervju", AVSLATT:"Avslått", TILBUD:"Tilbud" };
-  const mapEn = { PLANLAGT:"Planned", SOKT:"Applied", INTERVJU:"Interview", AVSLATT:"Rejected", TILBUD:"Offer" };
-  const m = (lang === "no") ? mapNo : mapEn;
-  return m[status] ?? status;
-}
-
-function fmtDate(d) { return d || "—"; }
-
-function isOverdue(deadline, status) {
-  if (!deadline) return false;
-  if (status === "AVSLATT" || status === "TILBUD") return false;
-  const today = new Date();
-  const dd = new Date(deadline + "T00:00:00");
-  return dd < new Date(today.getFullYear(), today.getMonth(), today.getDate());
-}
-
-async function updateStatus(id, status) {
-  await api(`/api/apps/${id}/status`, {
-    method: "PUT",
-    body: JSON.stringify({ status })
-  });
-  await load();
-}
-
-async function removeItem(id) {
-  await api(`/api/apps/${id}`, { method: "DELETE" });
-  await load();
-}
-
-function render(apps) {
-  const filtered = currentFilter === "ALL" ? apps : apps.filter(a => a.status === currentFilter);
-
-  const counts = apps.reduce((acc, a) => {
-    acc[a.status] = (acc[a.status] || 0) + 1;
-    return acc;
-  }, {});
-
-  statsEl.textContent =
-    `${badge("PLANLAGT")}: ${counts.PLANLAGT || 0} • ${badge("SOKT")}: ${counts.SOKT || 0} • ${badge("INTERVJU")}: ${counts.INTERVJU || 0} • ${badge("TILBUD")}: ${counts.TILBUD || 0} • ${badge("AVSLATT")}: ${counts.AVSLATT || 0}`;
-
-  if (filtered.length === 0) {
-    listEl.innerHTML = `<div class="muted">${(lang==="no") ? "Ingen treff." : "No results."}</div>`;
-    return;
+  // -----------------------------
+  // Auth flow (B1)
+  // -----------------------------
+  async function checkMe() {
+    try {
+      const me = await apiFetch(API.me, { method: "GET" });
+      authedEmail = me?.email || null;
+      setAuthedUI(true);
+      await loadApps(); // fetch list on login
+    } catch (e) {
+      authedEmail = null;
+      setAuthedUI(false);
+      // not logged in is normal: /me returns 401
+    }
   }
 
-  listEl.innerHTML = "";
-  for (const a of filtered) {
-    const el = document.createElement("div");
-    el.className = "item" + (isOverdue(a.deadline, a.status) ? " overdue" : "");
+  function setAuthedUI(isAuthed) {
+    if (isAuthed && authedEmail) {
+      hide(loginBtn);
+      show(whoami);
+      show(logoutBtn);
+      whoami.textContent = authedEmail;
+      hide(emptyLogin);
+      hide(loginHint);
+    } else {
+      show(loginBtn);
+      hide(whoami);
+      hide(logoutBtn);
+      whoami.textContent = t("notLoggedIn");
+      show(emptyLogin);
+      show(loginHint);
+      // clear list
+      appsCache = [];
+      renderList([]);
+      statsEl.textContent = "—";
+    }
+  }
 
-    const link = a.link
-      ? `<a href="${a.link}" target="_blank" rel="noreferrer">${(lang==="no") ? "Link" : "Link"}</a>`
-      : `<span class="muted">${(lang==="no") ? "Ingen link" : "No link"}</span>`;
+  async function doLogin(email, password) {
+    // Backend returns {email: "..."} and sets cookie
+    await apiFetch(API.login, {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
 
-    el.innerHTML = `
-      <div class="top">
-        <div>
-          <div class="title">${escapeHtml(a.company)} — ${escapeHtml(a.role)}</div>
-          <div class="meta">
-            <span>${(lang==="no") ? "Frist" : "Deadline"}: <span class="badge">${fmtDate(a.deadline)}</span></span>
-            <span>${(lang==="no") ? "Status" : "Status"}: <span class="badge">${badge(a.status)}</span></span>
-            <span>${link}</span>
+    // Confirm cookie works by calling /me
+    const me = await apiFetch(API.me, { method: "GET" });
+    authedEmail = me.email;
+    setAuthedUI(true);
+    closeAuthModal();
+    await loadApps();
+  }
+
+  async function doRegister(email, password) {
+    await apiFetch(API.register, {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
+  }
+
+  async function doLogout() {
+    try {
+      await apiFetch(API.logout, { method: "POST" });
+    } catch (_) {
+      // ignore
+    }
+    authedEmail = null;
+    setAuthedUI(false);
+  }
+
+  // -----------------------------
+  // Applications
+  // Assumptions about your backend API:
+  // - GET    /api/apps             -> array
+  // - POST   /api/apps             -> create (body: {company, role, link, deadline})
+  // - PUT    /api/apps/{id}/status  -> update status (body: {status})
+  // - DELETE /api/apps/{id}         -> delete
+  // If your endpoints differ, tell me, and I’ll adjust.
+  // -----------------------------
+  async function loadApps() {
+    if (!authedEmail) return;
+    const list = await apiFetch(API.apps, { method: "GET" });
+    appsCache = Array.isArray(list) ? list : [];
+    render();
+  }
+
+  async function createApp(payload) {
+    await apiFetch(API.apps, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    await loadApps();
+  }
+
+  async function updateStatus(id, status) {
+    await apiFetch(`${API.apps}/${id}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    });
+    await loadApps();
+  }
+
+  async function deleteApp(id) {
+    await apiFetch(`${API.apps}/${id}`, { method: "DELETE" });
+    await loadApps();
+  }
+
+  // -----------------------------
+  // Rendering
+  // -----------------------------
+  function normStatus(s) {
+    return String(s || "").toUpperCase();
+  }
+
+  function filterApps(apps, filter) {
+    if (filter === "ALL") return apps;
+    return apps.filter((a) => normStatus(a.status) === filter);
+  }
+
+  function computeStats(apps) {
+    const counts = { PLANLAGT: 0, SOKT: 0, INTERVJU: 0, TILBUD: 0, AVSLATT: 0 };
+    apps.forEach((a) => {
+      const st = normStatus(a.status);
+      if (counts[st] != null) counts[st]++;
+    });
+    return counts;
+  }
+
+  function setStats(counts) {
+    // Keep your existing style like: "Planlagt: 2 • Søkt: 1 • ..."
+    const lang = getLang();
+    const label = (k) => {
+      const mapNo = { PLANLAGT: "Planlagt", SOKT: "Søkt", INTERVJU: "Intervju", TILBUD: "Tilbud", AVSLATT: "Avslått" };
+      const mapEn = { PLANLAGT: "Planned", SOKT: "Applied", INTERVJU: "Interview", TILBUD: "Offer", AVSLATT: "Rejected" };
+      return (lang === "no" ? mapNo : mapEn)[k];
+    };
+    statsEl.textContent =
+      `${label("PLANLAGT")}: ${counts.PLANLAGT} • ` +
+      `${label("SOKT")}: ${counts.SOKT} • ` +
+      `${label("INTERVJU")}: ${counts.INTERVJU} • ` +
+      `${label("TILBUD")}: ${counts.TILBUD} • ` +
+      `${label("AVSLATT")}: ${counts.AVSLATT}`;
+  }
+
+  function isOverdue(deadline) {
+    if (!deadline) return false;
+    const d = new Date(deadline);
+    if (Number.isNaN(d.getTime())) return false;
+    const now = new Date();
+    // overdue if before today (ignore time)
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dd = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    return dd < today;
+  }
+
+  function render() {
+    const filtered = filterApps(appsCache, currentFilter);
+    renderList(filtered);
+    setStats(computeStats(appsCache));
+  }
+
+  function renderList(items) {
+    // If not logged in, keep the "emptyLogin" message and don't show items
+    if (!authedEmail) {
+      listEl.innerHTML = `<div class="muted" id="t_emptyLogin">${t("emptyLogin")}</div>`;
+      return;
+    }
+
+    if (!items.length) {
+      listEl.innerHTML = `<div class="muted">${getLang() === "no" ? "Ingen treff." : "No results."}</div>`;
+      return;
+    }
+
+    listEl.innerHTML = "";
+    items.forEach((app) => {
+      const el = document.createElement("div");
+      el.className = "item" + (isOverdue(app.deadline) ? " overdue" : "");
+
+      const title = `${app.company ?? ""} — ${app.role ?? ""}`.trim();
+
+      const deadline = app.deadline ? String(app.deadline) : "";
+      const status = normStatus(app.status) || "PLANLAGT";
+      const link = app.link ? String(app.link) : "";
+
+      el.innerHTML = `
+        <div class="top">
+          <div>
+            <div class="title">${escapeHtml(title)}</div>
+            <div class="meta">
+              ${deadline ? `<span>${getLang() === "no" ? "Frist" : "Deadline"}: <span class="badge">${escapeHtml(deadline)}</span></span>` : ""}
+              <span>${getLang() === "no" ? "Status" : "Status"}: <span class="badge">${escapeHtml(statusLabel(status))}</span></span>
+              ${link ? `<a href="${escapeAttr(link)}" target="_blank" rel="noopener">Link</a>` : ""}
+            </div>
+          </div>
+
+          <div class="actions">
+            <select data-id="${app.id}" class="statusSelect" aria-label="Status">
+              ${statusOption("PLANLAGT", status)}
+              ${statusOption("SOKT", status)}
+              ${statusOption("INTERVJU", status)}
+              ${statusOption("AVSLATT", status)}
+              ${statusOption("TILBUD", status)}
+            </select>
+            <button class="btn ghost deleteBtn" data-id="${app.id}" type="button">
+              ${getLang() === "no" ? "Slett" : "Delete"}
+            </button>
           </div>
         </div>
-        <div class="actions">
-          <select data-id="${a.id}" class="statusSelect">
-            ${["PLANLAGT","SOKT","INTERVJU","AVSLATT","TILBUD"].map(s =>
-              `<option value="${s}" ${s===a.status ? "selected" : ""}>${badge(s)}</option>`
-            ).join("")}
-          </select>
-          <button class="btn ghost" data-del="${a.id}">${(lang==="no") ? "Slett" : "Delete"}</button>
-        </div>
-      </div>
-    `;
+      `;
 
-    listEl.appendChild(el);
+      listEl.appendChild(el);
+    });
+
+    // Bind events after render
+    listEl.querySelectorAll(".statusSelect").forEach((sel) => {
+      sel.addEventListener("change", async (e) => {
+        const id = e.target.getAttribute("data-id");
+        const next = e.target.value;
+        try {
+          await updateStatus(id, next);
+        } catch (err) {
+          toastError(t("updateFailed"), err);
+        }
+      });
+    });
+
+    listEl.querySelectorAll(".deleteBtn").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        const id = e.target.getAttribute("data-id");
+        try {
+          await deleteApp(id);
+        } catch (err) {
+          toastError(t("deleteFailed"), err);
+        }
+      });
+    });
   }
 
-  document.querySelectorAll(".statusSelect").forEach(sel => {
-    sel.addEventListener("change", (e) => updateStatus(e.target.dataset.id, e.target.value));
+  function statusLabel(s) {
+    const lang = getLang();
+    const no = { PLANLAGT: "Planlagt", SOKT: "Søkt", INTERVJU: "Intervju", AVSLATT: "Avslått", TILBUD: "Tilbud" };
+    const en = { PLANLAGT: "Planned", SOKT: "Applied", INTERVJU: "Interview", AVSLATT: "Rejected", TILBUD: "Offer" };
+    return (lang === "no" ? no : en)[s] || s;
+  }
+
+  function statusOption(value, current) {
+    const sel = value === current ? "selected" : "";
+    return `<option value="${value}" ${sel}>${escapeHtml(statusLabel(value))}</option>`;
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function escapeAttr(str) {
+    // minimal for href
+    return String(str).replaceAll('"', "%22").replaceAll("'", "%27");
+  }
+
+  function toastOk(msg) {
+    authMsg.textContent = msg;
+    authMsg.classList.add("ok");
+    setTimeout(() => {
+      authMsg.textContent = "";
+      authMsg.classList.remove("ok");
+    }, 2500);
+  }
+
+  function toastError(prefix, err) {
+    const detail = err?.data
+      ? typeof err.data === "string"
+        ? err.data
+        : JSON.stringify(err.data)
+      : err?.message || "";
+    formMsg.textContent = `${prefix}${detail ? " (" + detail + ")" : ""}`;
+    setTimeout(() => (formMsg.textContent = ""), 3000);
+  }
+
+  // -----------------------------
+  // Events
+  // -----------------------------
+  loginBtn.addEventListener("click", () => {
+    mode = "login";
+    applyLang();
+    openAuthModal();
   });
-  document.querySelectorAll("button[data-del]").forEach(btn => {
-    btn.addEventListener("click", () => removeItem(btn.dataset.del));
+
+  closeAuth.addEventListener("click", closeAuthModal);
+
+  authModal.addEventListener("click", (e) => {
+    if (e.target === authModal) closeAuthModal();
   });
-}
 
-async function load() {
-  // Hvis ikke innlogget -> ikke spam 401
-  const me = await fetchMe();
-  if (!me) {
-    setLoggedOutUI();
-    return;
-  }
-  await setLoggedInUI(me.email);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !authModal.classList.contains("hidden")) closeAuthModal();
+  });
 
-  const res = await api("/api/apps");
-  if (!res.ok) {
-    const text = await res.text();
-    listEl.innerHTML = `<div class="muted">${escapeHtml(text || "Unauthorized")}</div>`;
-    return;
-  }
-  const apps = await res.json();
-  render(apps);
-}
+  toggleAuthMode.addEventListener("click", () => {
+    mode = mode === "login" ? "register" : "login";
+    authMsg.textContent = "";
+    authMsg.classList.remove("ok");
+    applyLang();
+  });
 
-function escapeHtml(str) {
-  return (str ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;");
-}
+  authForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    authMsg.textContent = "";
+    authMsg.classList.remove("ok");
 
-// init
-applyLang();
-load();
+    const email = authEmail.value.trim();
+    const password = authPassword.value;
+
+    try {
+      if (mode === "login") {
+        await doLogin(email, password);
+      } else {
+        await doRegister(email, password);
+        authMsg.textContent = t("registerOk");
+        authMsg.classList.add("ok");
+        mode = "login";
+        applyLang();
+      }
+    } catch (err) {
+      const msg =
+        (mode === "login" ? t("loginFailed") : t("registerFailed")) +
+        ` (${err?.status ?? "?"})` +
+        (err?.data ? `: ${typeof err.data === "string" ? err.data : JSON.stringify(err.data)}` : "");
+      authMsg.textContent = msg;
+      authMsg.classList.remove("ok");
+    }
+  });
+
+  logoutBtn.addEventListener("click", async () => {
+    await doLogout();
+  });
+
+  langBtn.addEventListener("click", () => {
+    const next = getLang() === "no" ? "en" : "no";
+    setLang(next);
+    render();
+  });
+
+  filterBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      filterBtns.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentFilter = btn.getAttribute("data-filter") || "ALL";
+      render();
+    });
+  });
+
+  createForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    formMsg.textContent = "";
+
+    if (!authedEmail) {
+      openAuthModal();
+      return;
+    }
+
+    const fd = new FormData(createForm);
+    const payload = {
+      company: (fd.get("company") || "").toString().trim(),
+      role: (fd.get("role") || "").toString().trim(),
+      link: (fd.get("link") || "").toString().trim(),
+      deadline: (fd.get("deadline") || "").toString().trim() || null,
+    };
+
+    try {
+      await createApp(payload);
+      createForm.reset();
+    } catch (err) {
+      formMsg.textContent =
+        `${t("addFailed")} (${err?.status ?? "?"})` +
+        (err?.data ? `: ${typeof err.data === "string" ? err.data : JSON.stringify(err.data)}` : "");
+    }
+  });
+
+  // -----------------------------
+  // Init
+  // -----------------------------
+  applyLang();
+  whoami.textContent = t("notLoggedIn");
+  checkMe(); // checks cookie-based session and loads apps if logged in
+})();
