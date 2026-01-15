@@ -8,9 +8,21 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
 
 @Configuration
 public class SecurityConfig {
+
+    private final JwtAuthFilter jwtAuthFilter;
+
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+        this.jwtAuthFilter = jwtAuthFilter;
+    }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -18,58 +30,59 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf.disable()) // enklest nå (kan aktiveres senere)
-                .cors(cors -> {})             // ok selv om du ikke har egen CORS bean
-
-                // ✅ Sessions på (ikke STATELESS)
-                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
-
-                // ✅ IKKE basic auth og IKKE formLogin (da slipper du popup og redirect)
-                .httpBasic(b -> b.disable())
-                .formLogin(f -> f.disable())
-
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> {}) // bruker bean under
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // preflight
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
-                        // statiske filer + error
+                        // Frontend + statiske filer
                         .requestMatchers(
-                                "/",
-                                "/index.html",
-                                "/styles.css",
-                                "/app.js",
+                                "/", "/index.html", "/styles.css", "/app.js",
                                 "/favicon.ico",
-                                "/error",
-                                "/**/*.css",
-                                "/**/*.js",
-                                "/**/*.map",
-                                "/**/*.png",
-                                "/**/*.jpg",
-                                "/**/*.jpeg",
-                                "/**/*.svg",
-                                "/**/*.webp",
-                                "/**/*.ico"
+                                "/**/*.css", "/**/*.js", "/**/*.png", "/**/*.jpg", "/**/*.jpeg",
+                                "/**/*.svg", "/**/*.webp", "/**/*.ico", "/**/*.map"
                         ).permitAll()
 
-                        // auth endpoints åpne
+                        // Auth endepunkter åpne
                         .requestMatchers("/api/auth/**").permitAll()
 
-                        // alt annet krever login (session)
+                        // Preflight
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                        // Rest krever cookie(JWT)
                         .anyRequest().authenticated()
                 )
-
-                // ✅ 401 uten popup
                 .exceptionHandling(e -> e.authenticationEntryPoint((req, res, ex) -> {
                     res.setStatus(401);
                     res.setContentType("text/plain; charset=utf-8");
                     res.getWriter().write("Unauthorized");
                 }))
-
-                // ✅ logout endpoint (optional, vi lager også controller endpoint)
-                .logout(l -> l.logoutUrl("/api/auth/logout"));
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    // CORS: viktig hvis du tester fra localhost eller annen origin.
+    // Hvis alt ligger på samme domene i Render, er dette likevel ok.
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration cfg = new CorsConfiguration();
+
+        cfg.setAllowedOrigins(List.of(
+                "http://localhost:8080",
+                "http://localhost:3000",
+                "http://localhost:5173",
+                "https://job-tracker-0qv9.onrender.com"
+        ));
+
+        cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
+        cfg.setAllowedHeaders(List.of("Content-Type", "Accept"));
+        cfg.setAllowCredentials(true); // 👈 MÅ være true for cookies
+        cfg.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();
+        src.registerCorsConfiguration("/**", cfg);
+        return src;
     }
 }
