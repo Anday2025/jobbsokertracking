@@ -1,9 +1,12 @@
 package com.example.jobtracker.service;
 
-import org.springframework.security.core.context.SecurityContextHolder;
 import com.example.jobtracker.model.JobApplication;
 import com.example.jobtracker.model.Status;
+import com.example.jobtracker.model.User;
 import com.example.jobtracker.repository.JobApplicationRepository;
+import com.example.jobtracker.repository.UserRepository;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -15,13 +18,29 @@ import java.util.Optional;
 public class JobApplicationService {
 
     private final JobApplicationRepository repo;
+    private final UserRepository userRepo;
 
-    public JobApplicationService(JobApplicationRepository repo) {
+    public JobApplicationService(JobApplicationRepository repo, UserRepository userRepo) {
         this.repo = repo;
+        this.userRepo = userRepo;
+    }
+
+    private String currentEmail() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return null;
+        return auth.getName(); // ✅ dette blir email når JwtAuthFilter setter auth
+    }
+
+    private User currentUser() {
+        String email = currentEmail();
+        if (email == null) throw new RuntimeException("Unauthorized");
+        return userRepo.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found: " + email));
     }
 
     public List<JobApplication> list() {
-        return repo.findAll().stream()
+        User u = currentUser();
+        return repo.findAllByUser(u).stream()
                 .sorted(Comparator.comparing(
                         JobApplication::getDeadline,
                         Comparator.nullsLast(Comparator.naturalOrder())
@@ -29,25 +48,24 @@ public class JobApplicationService {
                 .toList();
     }
 
-    private String currentEmail() {
-        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        return principal.toString();
-    }
-
-
-
     public JobApplication create(String company, String role, String link, LocalDate deadline) {
+        User u = currentUser();
+
         JobApplication app = new JobApplication();
+        app.setUser(u); // ✅ VIKTIG
         app.setCompany(company);
         app.setRole(role);
         app.setLink(link);
         app.setDeadline(deadline);
         app.setStatus(Status.PLANLAGT);
+
         return repo.save(app);
     }
 
     public Optional<JobApplication> updateStatus(long id, Status status) {
-        Optional<JobApplication> found = repo.findById(id);
+        User u = currentUser();
+
+        Optional<JobApplication> found = repo.findByIdAndUser(id, u);
         if (found.isEmpty()) return Optional.empty();
 
         JobApplication app = found.get();
@@ -56,8 +74,12 @@ public class JobApplicationService {
     }
 
     public boolean delete(long id) {
-        if (!repo.existsById(id)) return false;
-        repo.deleteById(id);
+        User u = currentUser();
+
+        Optional<JobApplication> found = repo.findByIdAndUser(id, u);
+        if (found.isEmpty()) return false;
+
+        repo.delete(found.get());
         return true;
     }
 }

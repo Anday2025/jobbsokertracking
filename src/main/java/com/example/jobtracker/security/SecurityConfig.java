@@ -33,30 +33,20 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
-                .cors(cors -> {}) // bruker bean under
+                .cors(cors -> {})
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
+                .anonymous(a -> a.disable()) // ✅ VIKTIG
+
                 .authorizeHttpRequests(auth -> auth
-                        // Statiske filer
                         .requestMatchers(
                                 "/", "/index.html", "/styles.css", "/app.js",
                                 "/favicon.ico",
                                 "/**/*.css", "/**/*.js", "/**/*.png", "/**/*.jpg", "/**/*.jpeg",
                                 "/**/*.svg", "/**/*.webp", "/**/*.ico", "/**/*.map"
                         ).permitAll()
-
-                        // Preflight
+                        .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
-                        // Bare disse auth-endepunktene skal være åpne:
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
-
-                        // /api/auth/me skal kreve cookie (innlogget)
-                        .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
-
-                        // Resten krever cookie(JWT)
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(e -> e.authenticationEntryPoint((req, res, ex) -> {
@@ -68,6 +58,7 @@ public class SecurityConfig {
 
         return http.build();
     }
+
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
