@@ -1,10 +1,8 @@
 package com.example.jobtracker.security;
 
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
@@ -16,18 +14,28 @@ import java.util.Date;
 public class JwtService {
 
     private final SecretKey key;
-    private final long ttlMs = 1000L * 60 * 60 * 24; // 24 timer
+    private final long ttlMs = 1000L * 60 * 60 * 24 * 7; // 7 dager
 
-    public JwtService(@Value("${JWT_SECRET:CHANGE_ME_CHANGE_ME_CHANGE_ME_32CHARS!}") String secret) {
-        if (secret == null) secret = "";
+    public JwtService() {
+        // LES FRA ENV: JWT_SECRET (minst 32 tegn)
+        String secret = System.getenv().getOrDefault("JWT_SECRET", "CHANGE_ME_CHANGE_ME_CHANGE_ME_32CHARS!");
         if (secret.length() < 32) {
-            throw new IllegalStateException("JWT_SECRET må være minst 32 tegn (HS256).");
+            throw new IllegalStateException("JWT_SECRET må være minst 32 tegn");
         }
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    // ====== LAGE TOKEN ======
+    // Brukes av AuthController
     public String generateToken(String email) {
+        return buildToken(email);
+    }
+
+    // (valgfritt alias hvis du har gammel kode som bruker createToken)
+    public String createToken(String email) {
+        return buildToken(email);
+    }
+
+    private String buildToken(String email) {
         Date now = new Date();
         Date exp = new Date(now.getTime() + ttlMs);
 
@@ -39,55 +47,26 @@ public class JwtService {
                 .compact();
     }
 
-    // (valgfritt) bakoverkompatibilitet om du fortsatt kaller createToken noe sted
-    public String createToken(String email) {
-        return generateToken(email);
-    }
-
-    // ====== HENTE EMAIL / USERNAME FRA TOKEN ======
+    // Brukes av JwtAuthFilter
     public String extractUsername(String token) {
-        return getAllClaims(token).getSubject();
+        return extractAllClaims(token).getSubject();
     }
 
-    // ====== VALIDERING ======
     public boolean isTokenValid(String token, UserDetails userDetails) {
-        try {
-            String username = extractUsername(token);
-            return username != null
-                    && username.equals(userDetails.getUsername())
-                    && !isTokenExpired(token);
-        } catch (Exception e) {
-            return false;
-        }
+        String email = extractUsername(token);
+        return email.equals(userDetails.getUsername()) && !isTokenExpired(token);
     }
 
-    public boolean isTokenExpired(String token) {
-        Date exp = getAllClaims(token).getExpiration();
-        return exp == null || exp.before(new Date());
+    private boolean isTokenExpired(String token) {
+        Date exp = extractAllClaims(token).getExpiration();
+        return exp.before(new Date());
     }
 
-    private Claims getAllClaims(String token) {
-        if (token == null) throw new IllegalArgumentException("Token mangler");
-
-        token = token.trim();
-        // hvis noen sender Bearer selv om du bruker cookie
-        if (token.startsWith("Bearer ")) {
-            token = token.substring("Bearer ".length()).trim();
-        }
-
-        try {
-            return Jwts.parser()
-                    .verifyWith(key)
-                    .build()
-                    .parseSignedClaims(token)
-                    .getPayload();
-        } catch (JwtException e) {
-            throw new IllegalArgumentException("Ugyldig eller utløpt token");
-        }
-    }
-
-    // Hvis du har brukt validateAndGetEmail i andre steder, behold den også
-    public String validateAndGetEmail(String token) {
-        return extractUsername(token);
+    private Claims extractAllClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 }

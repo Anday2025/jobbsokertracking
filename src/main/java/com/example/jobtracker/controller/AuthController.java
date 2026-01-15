@@ -3,6 +3,7 @@ package com.example.jobtracker.controller;
 import com.example.jobtracker.model.User;
 import com.example.jobtracker.repository.UserRepository;
 import com.example.jobtracker.security.JwtService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -38,46 +39,46 @@ public class AuthController {
             @NotBlank String password
     ) {}
 
-    // ---------- REGISTER ----------
+    // ---------- REGISTER (lager bruker + auto-login cookie) ----------
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody AuthRequest req) {
-        if (userRepository.existsByEmail(req.email())) {
+    public ResponseEntity<?> register(@RequestBody AuthRequest req,
+                                      HttpServletRequest request,
+                                      HttpServletResponse response) {
+
+        String email = req.email().toLowerCase().trim();
+
+        if (userRepository.existsByEmail(email)) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body("E-post er allerede registrert");
         }
-        if (req.password().length() < 6) {
+        if (req.password() == null || req.password().length() < 6) {
             return ResponseEntity.badRequest().body("Passord må være minst 6 tegn");
         }
 
-        User u = new User(req.email().toLowerCase().trim(), passwordEncoder.encode(req.password()));
+        User u = new User(email, passwordEncoder.encode(req.password()));
         userRepository.save(u);
-        return ResponseEntity.ok(Map.of("ok", true));
+
+        // Auto-login etter register (brukeropplevelse som "ekte" nettsider)
+        setSessionCookie(request, response, jwtService.generateToken(u.getEmail()));
+
+        return ResponseEntity.ok(Map.of("email", u.getEmail()));
     }
 
     // ---------- LOGIN (setter cookie) ----------
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody AuthRequest req, HttpServletResponse res) {
-        User u = userRepository.findByEmail(req.email().toLowerCase().trim())
-                .orElse(null);
+    public ResponseEntity<?> login(@RequestBody AuthRequest req,
+                                   HttpServletRequest request,
+                                   HttpServletResponse response) {
+
+        String email = req.email().toLowerCase().trim();
+
+        User u = userRepository.findByEmail(email).orElse(null);
 
         if (u == null || !passwordEncoder.matches(req.password(), u.getPasswordHash())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Feil e-post eller passord");
         }
 
-        String token = jwtService.generateToken(u.getEmail()); // eller generateToken(UserDetails)
+        setSessionCookie(request, response, jwtService.generateToken(u.getEmail()));
 
-        // Render = HTTPS => Secure=true. SameSite=None for cookie i moderne browsere når det er "cross-site".
-        // (Her er frontend og backend på samme domene, så Lax kunne også funket, men None er tryggest i praksis.)
-        ResponseCookie cookie = ResponseCookie.from("SESSION", token)
-                .httpOnly(true)
-                .secure(true)
-                .sameSite("None")
-                .path("/")
-                .maxAge(Duration.ofDays(7))
-                .build();
-
-        res.addHeader("Set-Cookie", cookie.toString());
-
-        // Returner gjerne litt info (ikke token)
         return ResponseEntity.ok(Map.of("email", u.getEmail()));
     }
 
@@ -92,16 +93,42 @@ public class AuthController {
 
     // ---------- LOGOUT (sletter cookie) ----------
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpServletResponse res) {
+    public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response) {
+        clearSessionCookie(request, response);
+        return ResponseEntity.ok(Map.of("ok", true));
+    }
+
+    // ==================== COOKIE HELPERS ====================
+
+    private void setSessionCookie(HttpServletRequest request, HttpServletResponse response, String token) {
+        boolean secure = request.isSecure(); // true på Render (https), false lokalt (http)
+
+        // SameSite=None krever Secure=true. Lokalt må vi bruke Lax.
+        String sameSite = secure ? "None" : "Lax";
+
+        ResponseCookie cookie = ResponseCookie.from("SESSION", token)
+                .httpOnly(true)
+                .secure(secure)
+                .sameSite(sameSite)
+                .path("/")
+                .maxAge(Duration.ofDays(7))
+                .build();
+
+        response.addHeader("Set-Cookie", cookie.toString());
+    }
+
+    private void clearSessionCookie(HttpServletRequest request, HttpServletResponse response) {
+        boolean secure = request.isSecure();
+        String sameSite = secure ? "None" : "Lax";
+
         ResponseCookie cookie = ResponseCookie.from("SESSION", "")
                 .httpOnly(true)
-                .secure(true)
-                .sameSite("None")
+                .secure(secure)
+                .sameSite(sameSite)
                 .path("/")
                 .maxAge(0)
                 .build();
 
-        res.addHeader("Set-Cookie", cookie.toString());
-        return ResponseEntity.ok(Map.of("ok", true));
+        response.addHeader("Set-Cookie", cookie.toString());
     }
 }

@@ -35,8 +35,9 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> {}) // bruker bean under
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
                 .authorizeHttpRequests(auth -> auth
-                        // Frontend + statiske filer
+                        // Statiske filer
                         .requestMatchers(
                                 "/", "/index.html", "/styles.css", "/app.js",
                                 "/favicon.ico",
@@ -44,13 +45,18 @@ public class SecurityConfig {
                                 "/**/*.svg", "/**/*.webp", "/**/*.ico", "/**/*.map"
                         ).permitAll()
 
-                        // Auth endepunkter åpne
-                        .requestMatchers("/api/auth/**").permitAll()
-
                         // Preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // Rest krever cookie(JWT)
+                        // Bare disse auth-endepunktene skal være åpne:
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
+
+                        // /api/auth/me skal kreve cookie (innlogget)
+                        .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
+
+                        // Resten krever cookie(JWT)
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(e -> e.authenticationEntryPoint((req, res, ex) -> {
@@ -63,21 +69,28 @@ public class SecurityConfig {
         return http.build();
     }
 
-    // CORS: viktig hvis du tester fra localhost eller annen origin.
-    // Hvis alt ligger på samme domene i Render, er dette likevel ok.
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
 
         cfg.setAllowedOrigins(List.of(
-                "http://localhost:8080",
+                "https://job-tracker-0qv9.onrender.com",
+
+                // vanlige dev-servere
                 "http://localhost:3000",
                 "http://localhost:5173",
-                "https://job-tracker-0qv9.onrender.com"
+                "http://localhost:8080",
+
+                // IntelliJ preview (veldig vanlig hos deg)
+                "http://localhost:63342"
         ));
 
         cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
-        cfg.setAllowedHeaders(List.of("Content-Type", "Accept"));
+
+        // Viktig: hvis du senere sender Authorization-header (ikke cookie),
+        // ellers er dette ok uansett.
+        cfg.setAllowedHeaders(List.of("Content-Type", "Accept", "Authorization"));
+
         cfg.setAllowCredentials(true); // 👈 MÅ være true for cookies
         cfg.setMaxAge(3600L);
 
