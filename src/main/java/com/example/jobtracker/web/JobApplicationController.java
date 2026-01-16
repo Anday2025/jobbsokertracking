@@ -4,6 +4,7 @@ import com.example.jobtracker.model.JobApplication;
 import com.example.jobtracker.model.Status;
 import com.example.jobtracker.service.JobApplicationService;
 import com.example.jobtracker.web.dto.CreateJobRequest;
+import com.example.jobtracker.web.dto.JobApplicationDto;
 import com.example.jobtracker.web.dto.UpdateStatusRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,8 +23,8 @@ public class JobApplicationController {
     }
 
     @GetMapping
-    public List<JobApplication> list() {
-        return service.list();
+    public List<JobApplicationDto> list() {
+        return service.list().stream().map(JobApplicationDto::from).toList();
     }
 
     @PostMapping
@@ -44,7 +45,8 @@ public class JobApplicationController {
                 req.getLink() == null ? "" : req.getLink().trim(),
                 deadline
         );
-        return ResponseEntity.ok(created);
+
+        return ResponseEntity.ok(JobApplicationDto.from(created));
     }
 
     @PutMapping("/{id}/status")
@@ -52,7 +54,7 @@ public class JobApplicationController {
         try {
             Status status = Status.valueOf(req.getStatus());
             return service.updateStatus(id, status)
-                    .<ResponseEntity<?>>map(ResponseEntity::ok)
+                    .<ResponseEntity<?>>map(app -> ResponseEntity.ok(JobApplicationDto.from(app)))
                     .orElseGet(() -> ResponseEntity.notFound().build());
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Ugyldig status");
@@ -61,7 +63,8 @@ public class JobApplicationController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable long id) {
-        return service.delete(id) ? ResponseEntity.noContent().build()
+        return service.delete(id)
+                ? ResponseEntity.noContent().build()
                 : ResponseEntity.notFound().build();
     }
 }
