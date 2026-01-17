@@ -1,27 +1,39 @@
 package com.example.jobtracker.service;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 @Service
 public class MailService {
 
-    private final JavaMailSender mailSender;
+    private final MailgunClient mailgunClient;
 
-    @Value("${spring.mail.from:}")
+    @Value("${MAILGUN_API_KEY:}")
+    private String apiKey;
+
+    @Value("${MAILGUN_DOMAIN:}")
+    private String domain;
+
+    @Value("${MAIL_FROM:}")
     private String from;
 
-    public MailService(JavaMailSender mailSender) {
-        this.mailSender = mailSender;
+    public MailService(MailgunClient mailgunClient) {
+        this.mailgunClient = mailgunClient;
     }
 
     public void sendVerificationEmail(String to, String link) {
-        SimpleMailMessage msg = new SimpleMailMessage();
-        msg.setTo(to);
-        msg.setSubject("Bekreft e-post for Jobbsøker-tracker");
-        msg.setText("""
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException("MAILGUN_API_KEY mangler i environment");
+        }
+        if (domain == null || domain.isBlank()) {
+            throw new IllegalStateException("MAILGUN_DOMAIN mangler i environment");
+        }
+        if (from == null || from.isBlank()) {
+            throw new IllegalStateException("MAIL_FROM mangler i environment");
+        }
+
+        String subject = "Bekreft e-post for Jobbsøker-tracker";
+        String text = """
                 Hei!
 
                 Klikk her for å aktivere brukeren din:
@@ -29,13 +41,8 @@ public class MailService {
 
                 Hilsen
                 Jobbsøker-tracker
-                """.formatted(link));
+                """.formatted(link);
 
-        // Viktig: Mailgun liker at du setter from eksplisitt
-        if (from != null && !from.isBlank()) {
-            msg.setFrom(from);
-        }
-
-        mailSender.send(msg);
+        mailgunClient.sendEmail(apiKey, domain, from, to, subject, text);
     }
 }
