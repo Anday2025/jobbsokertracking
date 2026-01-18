@@ -122,6 +122,17 @@ function setMsg(el, text, ok = false) {
   el.classList.toggle("ok", !!ok);
 }
 
+function showAuthError(msg) {
+  const errorEl = document.getElementById("auth-error");
+  if (errorEl) errorEl.textContent = msg || "";
+}
+
+function clearAuthError() {
+  const errorEl = document.getElementById("auth-error");
+  if (errorEl) errorEl.textContent = "";
+}
+
+
 function show(el) { el?.classList.remove("hidden"); }
 function hide(el) { el?.classList.add("hidden"); }
 
@@ -129,14 +140,17 @@ function openModal() {
   authModal.classList.remove("hidden");
   document.body.classList.add("modalOpen");
   setMsg(authMsg, "");
-  // fokus:
+  clearAuthError();
   setTimeout(() => authEmail?.focus(), 30);
 }
+
 function closeModal() {
   authModal.classList.add("hidden");
   document.body.classList.remove("modalOpen");
   setMsg(authMsg, "");
+  clearAuthError();
 }
+
 
 function fmtDate(iso) {
   if (!iso) return "";
@@ -486,12 +500,16 @@ toggleAuthMode?.addEventListener("click", () => {
   state.authMode = state.authMode === "login" ? "register" : "login";
   applyI18n();
   setMsg(authMsg, "");
+  clearAuthError();
 });
+
 
 // submit auth
 authForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
   setMsg(authMsg, "");
+  clearAuthError();
+
 
   const email = authEmail.value.trim().toLowerCase();
   const password = authPassword.value;
@@ -509,9 +527,10 @@ authForm?.addEventListener("submit", async (e) => {
     await doLogin(email, password);
     setMsg(authMsg, t("ok"), true);
     closeModal();
-  } catch (err) {
-    setMsg(authMsg, err.message || "Error");
-  }
+    } catch (err) {
+      showAuthError(err.message || "Error");
+    }
+
 });
 
 // logout
