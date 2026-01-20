@@ -27,6 +27,7 @@ public class MailService {
         }
     }
 
+
     public void sendVerificationEmail(String to, String link) {
         require(apiKey, "MAILGUN_API_KEY");
         require(domain, "MAILGUN_DOMAIN");
