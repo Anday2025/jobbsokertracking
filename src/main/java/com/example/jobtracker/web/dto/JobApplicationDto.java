@@ -10,6 +10,7 @@ public class JobApplicationDto {
     public String deadline; // "2026-01-18"
     public String status;
 
+
     public static JobApplicationDto from(JobApplication a) {
         JobApplicationDto dto = new JobApplicationDto();
         dto.id = a.getId();
