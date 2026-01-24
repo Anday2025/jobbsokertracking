@@ -3,8 +3,6 @@ package com.example.jobtracker.service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import static jakarta.mail.Transport.send;
-
 @Service
 public class MailService {
 
@@ -29,12 +27,15 @@ public class MailService {
         }
     }
 
-
-    public void sendVerificationEmail(String to, String link) {
+    private void requireMailgunConfig(String to) {
         require(apiKey, "MAILGUN_API_KEY");
         require(domain, "MAILGUN_DOMAIN");
         require(from, "MAIL_FROM");
         require(to, "TO");
+    }
+
+    public void sendVerificationEmail(String to, String link) {
+        requireMailgunConfig(to);
 
         String subject = "Bekreft e-post for Jobbsøker-tracker";
         String text = """
@@ -51,9 +52,23 @@ public class MailService {
     }
 
     public void sendResetPasswordEmail(String to, String resetUrl) {
-        String subject = "Reset passord";
-        String body = "Klikk her for å resette passordet ditt:\n\n" + resetUrl + "\n\nDenne linken utløper om 30 minutter.";
-        send(to, subject, body);
-    }
+        requireMailgunConfig(to);
 
+        String subject = "Reset passord";
+        String text = """
+                Hei!
+
+                Klikk her for å resette passordet ditt:
+                %s
+
+                Denne linken utløper om 30 minutter.
+
+                Hvis du ikke ba om dette, kan du ignorere e-posten.
+
+                Hilsen
+                Jobbsøker-tracker
+                """.formatted(resetUrl);
+
+        mailgunClient.sendEmail(apiKey, domain, from, to, subject, text);
+    }
 }
