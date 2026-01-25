@@ -6,12 +6,12 @@ const API = {
   login: "/api/auth/login",
   me: "/api/auth/me",
   logout: "/api/auth/logout",
-  apps: "/api/apps",
 
-  // NEW
   resendVerification: "/api/auth/resend-verification",
   forgotPassword: "/api/auth/forgot-password",
   resetPassword: "/api/auth/reset-password",
+
+  apps: "/api/apps",
 };
 
 const STORAGE_LANG = "lang"; // "no" | "en"
@@ -20,12 +20,16 @@ const STORAGE_LANG = "lang"; // "no" | "en"
 // State
 // =========================
 const state = {
-  me: null,              // { email }
-  apps: [],              // array of JobApplicationDto
-  filter: "ALL",         // ALL | PLANLAGT | SOKT | INTERVJU | AVSLATT | TILBUD
+  me: null,
+  apps: [],
+  filter: "ALL",
   lang: localStorage.getItem(STORAGE_LANG) || "no",
-  authMode: "login",     // "login" | "register"
-  authView: "login",     // login | register | forgot | reset | resend
+
+  // modal views:
+  // login | register | forgot | resend | reset
+  authView: "login",
+
+  // reset token from URL (?token=...)
   resetToken: null,
 };
 
@@ -36,21 +40,29 @@ const T = {
   no: {
     title: "Jobbsøker-tracker",
     subtitle: "Hold oversikt over søknadene dine.",
+
     login: "Logg inn",
     logout: "Logg ut",
     register: "Opprett bruker",
     email: "E-post",
     password: "Passord",
-    newPass: "Nytt passord",
-    confirmPass: "Bekreft passord",
+
+    newPassword: "Nytt passord",
+    confirmPassword: "Bekreft passord",
+    resetPassword: "Reset passord",
     reset: "Reset",
     back: "Tilbake",
-    forgot: "Forgot password?",
-    resend: "Resend verification",
-    forgotTitle: "Glemt passord",
-    resetTitle: "Reset passord",
-    resendTitle: "Send verifisering på nytt",
+
+    resendVerification: "Resend verification",
+    forgotPassword: "Forgot password?",
     send: "Send",
+
+    passMismatch: "passord ikke er samme",
+    weakPass: "Passordkrav: minst 8 tegn, stor/liten bokstav og tall",
+
+    newApp: "Ny søknad",
+    apps: "Søknader",
+    add: "Legg til",
     companyReq: "Firma og stilling er påkrevd",
     loginHint: "Logg inn for å lagre og se dine søknader.",
     emptyLogin: "Ingen treff. Logg inn for å se dine søknader.",
@@ -59,6 +71,7 @@ const T = {
     deadline: "Frist",
     status: "Status",
     del: "Slett",
+
     planned: "Planlagt",
     applied: "Søkt",
     interview: "Intervju",
@@ -67,31 +80,36 @@ const T = {
     all: "Alle",
 
     regOk: "Bruker opprettet. Sjekk e-posten din for bekreftelseslenke.",
-    forgotOk: "Hvis e-posten finnes, har vi sendt en reset-lenke. Sjekk innboksen din.",
-    resendOk: "Ny verifiseringslenke er sendt (hvis e-posten finnes).",
-    resetOk: "Passord er endret. Sjekk e-posten din for bekreftelse.",
-    passMismatch: "Passord er ikke samme",
-    fillEmail: "Fyll inn e-post",
-    fillAll: "Fyll inn alle felter",
+    forgotOk: "Hvis e-post finnes, er reset-link sendt.",
+    resendOk: "Hvis e-post finnes, er ny verifikasjon sendt.",
+    resetOk: "Passord er oppdatert. Du kan logge inn nå ✅",
   },
   en: {
     title: "Job tracker",
     subtitle: "Keep track of your applications.",
+
     login: "Sign in",
     logout: "Sign out",
     register: "Create account",
     email: "Email",
     password: "Password",
-    newPass: "New password",
-    confirmPass: "Confirm password",
+
+    newPassword: "New password",
+    confirmPassword: "Confirm password",
+    resetPassword: "Reset password",
     reset: "Reset",
     back: "Back",
-    forgot: "Forgot password?",
-    resend: "Resend verification",
-    forgotTitle: "Forgot password",
-    resetTitle: "Reset password",
-    resendTitle: "Resend verification",
+
+    resendVerification: "Resend verification",
+    forgotPassword: "Forgot password?",
     send: "Send",
+
+    passMismatch: "Passwords do not match",
+    weakPass: "Password must be 8+ chars, upper/lowercase + number",
+
+    newApp: "New application",
+    apps: "Applications",
+    add: "Add",
     companyReq: "Company and role are required",
     loginHint: "Sign in to save and view your applications.",
     emptyLogin: "No results. Sign in to view your applications.",
@@ -100,6 +118,7 @@ const T = {
     deadline: "Deadline",
     status: "Status",
     del: "Delete",
+
     planned: "Planned",
     applied: "Applied",
     interview: "Interview",
@@ -108,12 +127,9 @@ const T = {
     all: "All",
 
     regOk: "Account created. Check your email to verify your account.",
-    forgotOk: "If the email exists, we sent a reset link. Check your inbox.",
-    resendOk: "Verification email sent (if the email exists).",
-    resetOk: "Password changed. Check your email for confirmation.",
-    passMismatch: "Passwords do not match",
-    fillEmail: "Enter email",
-    fillAll: "Fill in all fields",
+    forgotOk: "If the email exists, a reset link has been sent.",
+    resendOk: "If the email exists, a new verification email has been sent.",
+    resetOk: "Password updated. You can sign in now ✅",
   }
 };
 
@@ -122,10 +138,22 @@ function t(key) {
 }
 
 // =========================
-// DOM
+// DOM helper
 // =========================
 const $ = (sel) => document.querySelector(sel);
 
+function setMsg(el, text, ok = false) {
+  if (!el) return;
+  el.textContent = text || "";
+  el.classList.toggle("ok", !!ok);
+}
+
+function show(el) { el?.classList.remove("hidden"); }
+function hide(el) { el?.classList.add("hidden"); }
+
+// =========================
+// DOM refs
+// =========================
 const loginBtn = $("#loginBtn");
 const logoutBtn = $("#logoutBtn");
 const whoami = $("#whoami");
@@ -134,10 +162,6 @@ const langBtn = $("#langBtn");
 const authModal = $("#authModal");
 const closeAuth = $("#closeAuth");
 const authForm = $("#authForm");
-const authEmail = $("#authEmail");
-const authPassword = $("#authPassword");
-const authSubmitBtn = $("#authSubmitBtn");
-const toggleAuthMode = $("#toggleAuthMode");
 const authMsg = $("#authMsg");
 
 const createForm = $("#createForm");
@@ -149,28 +173,16 @@ const listEl = $("#list");
 const filterBtns = Array.from(document.querySelectorAll(".filter"));
 
 // =========================
-// Helpers
+// Modal open/close
 // =========================
-function setMsg(el, text, ok = false) {
-  if (!el) return;
-  el.textContent = text || "";
-  el.classList.toggle("ok", !!ok);
-}
-
-function show(el) { el?.classList.remove("hidden"); }
-function hide(el) { el?.classList.add("hidden"); }
-
 function openModal() {
   if (!authModal) return;
   authModal.classList.remove("hidden");
   document.body.classList.add("modalOpen");
+  setMsg(authMsg, "");
   setTimeout(() => {
-    // focus riktig felt
-    if (state.authView === "reset") {
-      $("#authPasswordNew")?.focus();
-    } else {
-      authEmail?.focus();
-    }
+    const firstInput = authForm?.querySelector("input");
+    firstInput?.focus();
   }, 30);
 }
 
@@ -181,108 +193,25 @@ function closeModal() {
   setMsg(authMsg, "");
 }
 
-// Cookie-auth: viktig at vi inkluderer cookies
-async function apiFetch(url, options = {}) {
-  const res = await fetch(url, {
-    ...options,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-  });
-  return res;
-}
+// close modal by clicking backdrop
+authModal?.addEventListener("click", (e) => {
+  if (e.target === authModal) closeModal();
+});
 
-async function readError(res) {
-  // prøv JSON først
-  try {
-    const j = await res.json();
-    if (j?.error) return j.error;
-    if (j?.message) return j.message;
-  } catch {}
-  // fallback text
-  const txt = await res.text().catch(() => "");
-  return txt || `HTTP ${res.status}`;
-}
+closeAuth?.addEventListener("click", (e) => {
+  e.preventDefault();
+  closeModal();
+});
+
+loginBtn?.addEventListener("click", (e) => {
+  e.preventDefault();
+  state.authView = "login";
+  renderAuthView();
+  openModal();
+});
 
 // =========================
-// Rendering (Main UI)
-// =========================
-function applyI18n() {
-  const titleEl = $("#t_title");
-  const subEl = $("#t_subtitle");
-  if (titleEl) titleEl.textContent = t("title");
-  if (subEl) subEl.textContent = t("subtitle");
-
-  if (loginBtn) loginBtn.textContent = t("login");
-  if (logoutBtn) logoutBtn.textContent = t("logout");
-  if (langBtn) langBtn.textContent = state.lang === "no" ? "NO/EN" : "EN/NO";
-
-  const newAppTitle = $("#t_newAppTitle");
-  const appsTitle = $("#t_appsTitle");
-  const addBtn = $("#t_addBtn");
-  if (newAppTitle) newAppTitle.textContent = state.lang === "no" ? "Ny søknad" : "New application";
-  if (appsTitle) appsTitle.textContent = t("apps");
-  if (addBtn) addBtn.textContent = t("add") || (state.lang === "no" ? "Legg til" : "Add");
-
-  const fAll = $("#t_f_all");
-  const fPlanned = $("#t_f_planned");
-  const fApplied = $("#t_f_applied");
-  const fInterview = $("#t_f_interview");
-  const fRejected = $("#t_f_rejected");
-  const fOffer = $("#t_f_offer");
-
-  if (fAll) fAll.textContent = t("all");
-  if (fPlanned) fPlanned.textContent = t("planned");
-  if (fApplied) fApplied.textContent = t("applied");
-  if (fInterview) fInterview.textContent = t("interview");
-  if (fRejected) fRejected.textContent = t("rejected");
-  if (fOffer) fOffer.textContent = t("offer");
-
-  const companyLabel = $("#t_companyLabel");
-  const roleLabel = $("#t_roleLabel");
-  const linkLabel = $("#t_linkLabel");
-  const deadlineLabel = $("#t_deadlineLabel");
-
-  if (companyLabel) companyLabel.textContent = state.lang === "no" ? "Firma *" : "Company *";
-  if (roleLabel) roleLabel.textContent = state.lang === "no" ? "Stilling *" : "Role *";
-  if (linkLabel) linkLabel.textContent = t("link");
-  if (deadlineLabel) deadlineLabel.textContent = t("deadline");
-
-  const companyPh = $("#t_companyPh");
-  const rolePh = $("#t_rolePh");
-  const linkPh = $("#t_linkPh");
-
-  if (companyPh) companyPh.setAttribute("placeholder", state.lang === "no" ? "F.eks. NAV / Telenor" : "e.g. NAV / Telenor");
-  if (rolePh) rolePh.setAttribute("placeholder", state.lang === "no" ? "F.eks. Junior utvikler" : "e.g. Junior developer");
-  if (linkPh) linkPh.setAttribute("placeholder", "https://...");
-
-  const loginHint = $("#t_loginHint");
-  const emptyLogin = $("#t_emptyLogin");
-  if (loginHint) loginHint.textContent = t("loginHint");
-  if (emptyLogin) emptyLogin.textContent = state.me ? t("empty") : t("emptyLogin");
-
-  // Modal i18n styres i setAuthView()
-}
-
-function updateAuthUI() {
-  if (state.me?.email) {
-    if (whoami) whoami.textContent = state.me.email;
-    show(whoami);
-    show(logoutBtn);
-    hide(loginBtn);
-  } else {
-    if (whoami) whoami.textContent = "—";
-    hide(whoami);
-    hide(logoutBtn);
-    show(loginBtn);
-  }
-  applyI18n();
-}
-
-// =========================
-// Apps list rendering
+// Helpers
 // =========================
 function fmtDate(iso) {
   if (!iso) return "";
@@ -302,6 +231,108 @@ function statusLabel(s) {
     case "TILBUD": return t("offer");
     default: return s;
   }
+}
+
+function getQueryParam(name) {
+  const url = new URL(window.location.href);
+  return url.searchParams.get(name);
+}
+
+function removeQueryParam(name) {
+  const url = new URL(window.location.href);
+  url.searchParams.delete(name);
+  window.history.replaceState({}, "", url.toString());
+}
+
+function isStrongPassword(pw) {
+  if (!pw) return false;
+  // minst 8 tegn + stor + liten + tall
+  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(pw);
+}
+
+// Cookie-auth: viktig at vi inkluderer cookies
+async function apiFetch(url, options = {}) {
+  const res = await fetch(url, {
+    ...options,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
+  return res;
+}
+
+async function readError(res) {
+  const txt = await res.text().catch(() => "");
+  try {
+    const json = JSON.parse(txt);
+    if (json?.error) return json.error;
+  } catch {}
+  return txt || `HTTP ${res.status}`;
+}
+
+// =========================
+// Rendering (Main UI)
+// =========================
+function applyI18n() {
+  $("#t_title") && ($("#t_title").textContent = t("title"));
+  $("#t_subtitle") && ($("#t_subtitle").textContent = t("subtitle"));
+
+  if (loginBtn) loginBtn.textContent = t("login");
+  if (logoutBtn) logoutBtn.textContent = t("logout");
+  if (langBtn) langBtn.textContent = state.lang === "no" ? "NO/EN" : "EN/NO";
+
+  $("#t_newAppTitle") && ($("#t_newAppTitle").textContent = t("newApp"));
+  $("#t_appsTitle") && ($("#t_appsTitle").textContent = t("apps"));
+  $("#t_addBtn") && ($("#t_addBtn").textContent = t("add"));
+
+  $("#t_f_all") && ($("#t_f_all").textContent = t("all"));
+  $("#t_f_planned") && ($("#t_f_planned").textContent = t("planned"));
+  $("#t_f_applied") && ($("#t_f_applied").textContent = t("applied"));
+  $("#t_f_interview") && ($("#t_f_interview").textContent = t("interview"));
+  $("#t_f_rejected") && ($("#t_f_rejected").textContent = t("rejected"));
+  $("#t_f_offer") && ($("#t_f_offer").textContent = t("offer"));
+
+  $("#t_companyLabel") && ($("#t_companyLabel").textContent = state.lang === "no" ? "Firma *" : "Company *");
+  $("#t_roleLabel") && ($("#t_roleLabel").textContent = state.lang === "no" ? "Stilling *" : "Role *");
+  $("#t_linkLabel") && ($("#t_linkLabel").textContent = t("link"));
+  $("#t_deadlineLabel") && ($("#t_deadlineLabel").textContent = t("deadline"));
+
+  $("#t_companyPh") && $("#t_companyPh").setAttribute("placeholder", state.lang === "no" ? "F.eks. NAV / Telenor" : "e.g. NAV / Telenor");
+  $("#t_rolePh") && $("#t_rolePh").setAttribute("placeholder", state.lang === "no" ? "F.eks. Junior utvikler" : "e.g. Junior developer");
+  $("#t_linkPh") && $("#t_linkPh").setAttribute("placeholder", "https://...");
+
+  const loginHint = $("#t_loginHint");
+  const emptyLogin = $("#t_emptyLogin");
+  if (loginHint) loginHint.textContent = t("loginHint");
+  if (emptyLogin) emptyLogin.textContent = state.me ? t("empty") : t("emptyLogin");
+
+  // modal title
+  const authTitle = $("#authTitle");
+  if (authTitle) {
+    authTitle.textContent =
+        state.authView === "login" ? t("login")
+            : state.authView === "register" ? t("register")
+                : state.authView === "forgot" ? t("forgotPassword")
+                    : state.authView === "resend" ? t("resendVerification")
+                        : t("resetPassword");
+  }
+}
+
+function updateAuthUI() {
+  if (state.me?.email) {
+    if (whoami) whoami.textContent = state.me.email;
+    show(whoami);
+    show(logoutBtn);
+    hide(loginBtn);
+  } else {
+    if (whoami) whoami.textContent = "—";
+    hide(whoami);
+    hide(logoutBtn);
+    show(loginBtn);
+  }
+  applyI18n();
 }
 
 function filteredApps() {
@@ -332,7 +363,6 @@ function renderList() {
 
   const apps = filteredApps();
   renderStats();
-
   listEl.innerHTML = "";
 
   if (!state.me) {
@@ -407,6 +437,7 @@ function renderList() {
       if (st === a.status) opt.selected = true;
       select.appendChild(opt);
     });
+
     select.addEventListener("change", async () => {
       try {
         await updateStatus(a.id, select.value);
@@ -439,140 +470,153 @@ function renderList() {
 }
 
 // =========================
-// Modal logic (Login/Register/Forgot/Reset/Resend)
+// Auth modal rendering
 // =========================
-function ensureResetUI() {
-  // Lager "Bekreft passord" input hvis den ikke finnes
-  let confirm = $("#authPasswordConfirm");
-  if (!confirm && authPassword?.parentElement) {
-    confirm = document.createElement("input");
-    confirm.id = "authPasswordConfirm";
-    confirm.type = "password";
-    confirm.autocomplete = "new-password";
-    confirm.placeholder = t("confirmPass");
-    confirm.className = authPassword.className; // samme stil
-    authPassword.insertAdjacentElement("afterend", confirm);
-  }
-
-  // Lager ekstra lenker under knapper hvis de ikke finnes
-  let extraRow = $("#authExtraRow");
-  if (!extraRow && authForm) {
-    extraRow = document.createElement("div");
-    extraRow.id = "authExtraRow";
-    extraRow.style.display = "flex";
-    extraRow.style.justifyContent = "space-between";
-    extraRow.style.marginTop = "10px";
-
-    const forgot = document.createElement("button");
-    forgot.type = "button";
-    forgot.id = "forgotBtn";
-    forgot.className = "linkBtn";
-    forgot.textContent = t("forgot");
-
-    const resend = document.createElement("button");
-    resend.type = "button";
-    resend.id = "resendBtn";
-    resend.className = "linkBtn";
-    resend.textContent = t("resend");
-
-    extraRow.appendChild(forgot);
-    extraRow.appendChild(resend);
-    authForm.appendChild(extraRow);
-  }
-}
-
-function setAuthView(view, opts = {}) {
-  state.authView = view;
-  if (opts.token !== undefined) state.resetToken = opts.token;
-
-  ensureResetUI();
-
-  const title = $("#authTitle");
-  const confirm = $("#authPasswordConfirm");
-  const forgotBtn = $("#forgotBtn");
-  const resendBtn = $("#resendBtn");
+function renderAuthView() {
+  if (!authForm) return;
 
   setMsg(authMsg, "");
-
-  // default visning
-  show(authEmail);
-  show(authPassword);
-  hide(confirm);
-
-  // standard buttons
-  if (authSubmitBtn) authSubmitBtn.textContent = t("login");
-  if (toggleAuthMode) {
-    toggleAuthMode.style.display = "inline-flex";
-    toggleAuthMode.textContent = t("register");
-  }
-
-  // ekstra lenker vises alltid, men kan være disabled i reset-view
-  if (forgotBtn) forgotBtn.style.display = "inline-flex";
-  if (resendBtn) resendBtn.style.display = "inline-flex";
-
-  // LOGIN/REGISTER switch
-  if (view === "login") {
-    state.authMode = "login";
-    if (title) title.textContent = t("login");
-    if (authEmail) authEmail.placeholder = t("email");
-    if (authPassword) authPassword.placeholder = t("password");
-    if (authSubmitBtn) authSubmitBtn.textContent = t("login");
-    if (toggleAuthMode) toggleAuthMode.textContent = t("register");
-  }
-
-  if (view === "register") {
-    state.authMode = "register";
-    if (title) title.textContent = t("register");
-    if (authEmail) authEmail.placeholder = t("email");
-    if (authPassword) authPassword.placeholder = t("password");
-    if (authSubmitBtn) authSubmitBtn.textContent = t("register");
-    if (toggleAuthMode) toggleAuthMode.textContent = t("login");
-  }
-
-  if (view === "forgot") {
-    if (title) title.textContent = t("forgotTitle");
-    if (authSubmitBtn) authSubmitBtn.textContent = t("send");
-    hide(authPassword);
-    hide(confirm);
-    if (toggleAuthMode) toggleAuthMode.textContent = t("back");
-  }
-
-  if (view === "resend") {
-    if (title) title.textContent = t("resendTitle");
-    if (authSubmitBtn) authSubmitBtn.textContent = t("send");
-    hide(authPassword);
-    hide(confirm);
-    if (toggleAuthMode) toggleAuthMode.textContent = t("back");
-  }
-
-  if (view === "reset") {
-    if (title) title.textContent = t("resetTitle");
-    hide(authEmail);
-    show(authPassword);
-    show(confirm);
-
-    if (authPassword) authPassword.placeholder = t("newPass");
-    if (confirm) confirm.placeholder = t("confirmPass");
-    if (authSubmitBtn) authSubmitBtn.textContent = t("reset");
-    if (toggleAuthMode) toggleAuthMode.textContent = t("back");
-
-    // i reset-view skjuler vi resend/forgot linker (du har allerede "Tilbake")
-    if (forgotBtn) forgotBtn.style.display = "none";
-    if (resendBtn) resendBtn.style.display = "none";
-  }
-
   applyI18n();
-}
 
-function clearResetTokenFromUrl() {
-  const url = new URL(window.location.href);
-  url.searchParams.delete("token");
-  window.history.replaceState({}, "", url.toString());
+  // Build dynamic content inside authForm
+  let html = "";
+
+  if (state.authView === "login" || state.authView === "register") {
+    html = `
+      <input id="authEmail" type="email" autocomplete="email" placeholder="${t("email")}" required />
+      <input id="authPassword" type="password" autocomplete="current-password" placeholder="${t("password")}" required />
+
+      <div class="modalActions">
+        <button id="authSubmitBtn" class="btn primary" type="submit">
+          ${state.authView === "login" ? t("login") : t("register")}
+        </button>
+
+        <button id="toggleAuthMode" class="btn ghost" type="button">
+          ${state.authView === "login" ? t("register") : t("login")}
+        </button>
+      </div>
+
+      <div class="modalLinks">
+        <button id="forgotBtn" class="linkBtn" type="button">${t("forgotPassword")}</button>
+        <button id="resendBtn" class="linkBtn" type="button">${t("resendVerification")}</button>
+      </div>
+
+      <div id="authMsg" class="msg"></div>
+    `;
+  }
+
+  if (state.authView === "forgot") {
+    html = `
+      <input id="authEmail" type="email" autocomplete="email" placeholder="${t("email")}" required />
+
+      <div class="modalActions">
+        <button class="btn primary" type="submit">${t("send")}</button>
+        <button id="backBtn" class="btn ghost" type="button">${t("back")}</button>
+      </div>
+
+      <div id="authMsg" class="msg"></div>
+    `;
+  }
+
+  if (state.authView === "resend") {
+    html = `
+      <input id="authEmail" type="email" autocomplete="email" placeholder="${t("email")}" required />
+
+      <div class="modalActions">
+        <button class="btn primary" type="submit">${t("send")}</button>
+        <button id="backBtn" class="btn ghost" type="button">${t("back")}</button>
+      </div>
+
+      <div id="authMsg" class="msg"></div>
+    `;
+  }
+
+  if (state.authView === "reset") {
+    html = `
+      <input id="newPassword" type="password" autocomplete="new-password" placeholder="${t("newPassword")}" required />
+      <input id="confirmPassword" type="password" autocomplete="new-password" placeholder="${t("confirmPassword")}" required />
+
+      <div class="modalActions">
+        <button class="btn primary" type="submit">${t("reset")}</button>
+        <button id="backBtn" class="btn ghost" type="button">${t("back")}</button>
+      </div>
+
+      <div id="authMsg" class="msg"></div>
+    `;
+  }
+
+  authForm.innerHTML = html;
+
+  // Update title
+  const authTitle = $("#authTitle");
+  if (authTitle) {
+    authTitle.textContent =
+        state.authView === "login" ? t("login")
+            : state.authView === "register" ? t("register")
+                : state.authView === "forgot" ? t("forgotPassword")
+                    : state.authView === "resend" ? t("resendVerification")
+                        : t("resetPassword");
+  }
+
+  // Wire buttons
+  const toggleAuthMode = $("#toggleAuthMode");
+  toggleAuthMode?.addEventListener("click", () => {
+    state.authView = state.authView === "login" ? "register" : "login";
+    renderAuthView();
+  });
+
+  $("#forgotBtn")?.addEventListener("click", () => {
+    state.authView = "forgot";
+    renderAuthView();
+  });
+
+  $("#resendBtn")?.addEventListener("click", () => {
+    state.authView = "resend";
+    renderAuthView();
+  });
+
+  $("#backBtn")?.addEventListener("click", () => {
+    // if reset view came from URL token, we still go back to login
+    state.authView = "login";
+    renderAuthView();
+  });
 }
 
 // =========================
-// API actions (Auth)
+// API actions
 // =========================
+async function loadMe() {
+  try {
+    const res = await apiFetch(API.me, { method: "GET" });
+    if (!res.ok) {
+      state.me = null;
+      updateAuthUI();
+      return;
+    }
+    state.me = await res.json();
+    updateAuthUI();
+  } catch {
+    state.me = null;
+    updateAuthUI();
+  }
+}
+
+async function loadApps() {
+  if (!state.me) {
+    state.apps = [];
+    renderList();
+    return;
+  }
+  const res = await apiFetch(API.apps, { method: "GET" });
+  if (!res.ok) {
+    state.apps = [];
+    renderList();
+    return;
+  }
+  state.apps = await res.json();
+  renderList();
+}
+
 async function doLogin(email, password) {
   const res = await apiFetch(API.login, {
     method: "POST",
@@ -609,10 +653,10 @@ async function doForgotPassword(email) {
   if (!res.ok) throw new Error(await readError(res));
 }
 
-async function doResetPassword(token, newPassword) {
+async function doResetPassword(token, password) {
   const res = await apiFetch(API.resetPassword, {
     method: "POST",
-    body: JSON.stringify({ token, newPassword }),
+    body: JSON.stringify({ token, password }),
   });
   if (!res.ok) throw new Error(await readError(res));
 }
@@ -622,41 +666,6 @@ async function doLogout() {
   state.me = null;
   state.apps = [];
   updateAuthUI();
-  renderList();
-}
-
-// =========================
-// API actions (Apps)
-// =========================
-async function loadMe() {
-  try {
-    const res = await apiFetch(API.me, { method: "GET" });
-    if (!res.ok) {
-      state.me = null;
-      updateAuthUI();
-      return;
-    }
-    state.me = await res.json();
-    updateAuthUI();
-  } catch {
-    state.me = null;
-    updateAuthUI();
-  }
-}
-
-async function loadApps() {
-  if (!state.me) {
-    state.apps = [];
-    renderList();
-    return;
-  }
-  const res = await apiFetch(API.apps, { method: "GET" });
-  if (!res.ok) {
-    state.apps = [];
-    renderList();
-    return;
-  }
-  state.apps = await res.json();
   renderList();
 }
 
@@ -693,156 +702,127 @@ async function deleteApp(id) {
 }
 
 // =========================
-// Events
+// Modal submit handler (dynamic)
 // =========================
-loginBtn?.addEventListener("click", (e) => {
-  e.preventDefault();
-  setAuthView("login");
-  openModal();
-});
-
-closeAuth?.addEventListener("click", (e) => {
-  e.preventDefault();
-  closeModal();
-});
-
-// close modal by clicking backdrop
-authModal?.addEventListener("click", (e) => {
-  if (e.target === authModal) closeModal();
-});
-
-// Toggle / Back button
-toggleAuthMode?.addEventListener("click", () => {
-  setMsg(authMsg, "");
-
-  if (state.authView === "forgot" || state.authView === "reset" || state.authView === "resend") {
-    setAuthView("login");
-    return;
-  }
-
-  if (state.authMode === "login") {
-    setAuthView("register");
-  } else {
-    setAuthView("login");
-  }
-});
-
-// Forgot + Resend buttons
-document.addEventListener("click", (e) => {
-  const id = e.target?.id;
-
-  if (id === "forgotBtn") {
-    setAuthView("forgot");
-    return;
-  }
-
-  if (id === "resendBtn") {
-    setAuthView("resend");
-    return;
-  }
-});
-
-// auth submit (all views)
-authForm?.addEventListener("submit", async (e) => {
+document.addEventListener("submit", async (e) => {
+  if (e.target !== authForm) return;
   e.preventDefault();
   setMsg(authMsg, "");
 
   try {
-    // RESET
-    if (state.authView === "reset") {
-      const newPass = (authPassword?.value || "").trim();
-      const confirm = ($("#authPasswordConfirm")?.value || "").trim();
+    // LOGIN / REGISTER
+    if (state.authView === "login" || state.authView === "register") {
+      const email = ($("#authEmail")?.value || "").trim().toLowerCase();
+      const password = $("#authPassword")?.value || "";
 
-      if (!newPass || !confirm) {
-        setMsg(authMsg, t("fillAll"));
+      if (!email || !password) {
+        setMsg(authMsg, state.lang === "no" ? "Fyll inn e-post og passord" : "Enter email and password");
         return;
       }
 
-      if (newPass !== confirm) {
-        setMsg(authMsg, t("passMismatch"));
+      if (state.authView === "register") {
+        if (!isStrongPassword(password)) {
+          setMsg(authMsg, t("weakPass"));
+          return;
+        }
+        await doRegister(email, password);
+
+        setMsg(authMsg, t("regOk"), true);
+        // go back to login automatically
+        state.authView = "login";
+        renderAuthView();
         return;
       }
 
-      if (!state.resetToken) {
-        setMsg(authMsg, "Token mangler");
-        return;
-      }
-
-      await doResetPassword(state.resetToken, newPass);
-
-      setMsg(authMsg, t("resetOk"), true);
-
-      // rydde token i url + gå tilbake til login
-      clearResetTokenFromUrl();
-      state.resetToken = null;
-
-      setTimeout(() => {
-        setAuthView("login");
-        // du kan velge closeModal() hvis du vil lukke automatisk:
-        // closeModal();
-      }, 900);
-
+      await doLogin(email, password);
+      closeModal();
       return;
     }
 
-    // FORGOT
+    // FORGOT PASSWORD
     if (state.authView === "forgot") {
-      const email = (authEmail?.value || "").trim().toLowerCase();
+      const email = ($("#authEmail")?.value || "").trim().toLowerCase();
       if (!email) {
-        setMsg(authMsg, t("fillEmail"));
+        setMsg(authMsg, state.lang === "no" ? "Skriv inn e-post" : "Enter email");
         return;
       }
 
       await doForgotPassword(email);
+
       setMsg(authMsg, t("forgotOk"), true);
 
-      setTimeout(() => setAuthView("login"), 900);
+      // back to login automatically
+      state.authView = "login";
+      renderAuthView();
       return;
     }
 
-    // RESEND
+    // RESEND VERIFICATION
     if (state.authView === "resend") {
-      const email = (authEmail?.value || "").trim().toLowerCase();
+      const email = ($("#authEmail")?.value || "").trim().toLowerCase();
       if (!email) {
-        setMsg(authMsg, t("fillEmail"));
+        setMsg(authMsg, state.lang === "no" ? "Skriv inn e-post" : "Enter email");
         return;
       }
 
       await doResendVerification(email);
+
       setMsg(authMsg, t("resendOk"), true);
 
-      setTimeout(() => setAuthView("login"), 900);
+      // back to login automatically
+      state.authView = "login";
+      renderAuthView();
       return;
     }
 
-    // LOGIN / REGISTER
-    const email = (authEmail?.value || "").trim().toLowerCase();
-    const password = (authPassword?.value || "").trim();
+    // RESET PASSWORD
+    if (state.authView === "reset") {
+      const newPw = $("#newPassword")?.value || "";
+      const confirmPw = $("#confirmPassword")?.value || "";
 
-    if (!email || !password) {
-      setMsg(authMsg, state.lang === "no" ? "Fyll inn e-post og passord" : "Enter email and password");
+      if (!newPw || !confirmPw) {
+        setMsg(authMsg, state.lang === "no" ? "Fyll inn begge feltene" : "Fill in both fields");
+        return;
+      }
+
+      if (newPw !== confirmPw) {
+        setMsg(authMsg, t("passMismatch"));
+        return;
+      }
+
+      if (!isStrongPassword(newPw)) {
+        setMsg(authMsg, t("weakPass"));
+        return;
+      }
+
+      if (!state.resetToken) {
+        setMsg(authMsg, state.lang === "no" ? "Token mangler" : "Missing token");
+        return;
+      }
+
+      await doResetPassword(state.resetToken, newPw);
+
+      setMsg(authMsg, t("resetOk"), true);
+
+      // Remove token from URL after success
+      removeQueryParam("token");
+      state.resetToken = null;
+
+      // back to login automatically
+      state.authView = "login";
+      renderAuthView();
       return;
     }
 
-    if (state.authView === "register") {
-      await doRegister(email, password);
-      setMsg(authMsg, t("regOk"), true);
-
-      // switch til login automatisk
-      setTimeout(() => setAuthView("login"), 900);
-      return;
-    }
-
-    // login
-    await doLogin(email, password);
-    closeModal();
   } catch (err) {
     setMsg(authMsg, err?.message || "Noe gikk galt");
     console.error(err);
   }
-});
+}, true);
 
-// logout
+// =========================
+// Events (main buttons)
+// =========================
 logoutBtn?.addEventListener("click", async () => {
   try {
     await doLogout();
@@ -858,7 +838,8 @@ createForm?.addEventListener("submit", async (e) => {
 
   if (!state.me) {
     setMsg(formMsg, t("loginHint"));
-    setAuthView("login");
+    state.authView = "login";
+    renderAuthView();
     openModal();
     return;
   }
@@ -898,32 +879,30 @@ filterBtns.forEach(btn => {
 langBtn?.addEventListener("click", () => {
   state.lang = state.lang === "no" ? "en" : "no";
   localStorage.setItem(STORAGE_LANG, state.lang);
-
-  // oppdater placeholders/labels i modal også
-  setAuthView(state.authView);
   applyI18n();
   renderList();
+  renderAuthView();
 });
 
 // =========================
 // Init
 // =========================
-(function initAutoResetFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  const token = params.get("token");
-  if (token) {
-    // hvis URL har ?token=... → åpne reset view automatisk
-    state.resetToken = token;
-    setAuthView("reset", { token });
-    openModal();
-  } else {
-    setAuthView("login");
-  }
-})();
-
 (async function init() {
   applyI18n();
   updateAuthUI();
+
+  // ✅ Auto open reset view if URL has ?token=
+  const token = getQueryParam("token");
+  if (token) {
+    state.resetToken = token;
+    state.authView = "reset";
+    renderAuthView();
+    openModal();
+  } else {
+    state.authView = "login";
+    renderAuthView();
+  }
+
   await loadMe();
   await loadApps();
 })();
