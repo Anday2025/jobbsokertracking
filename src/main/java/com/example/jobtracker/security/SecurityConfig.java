@@ -43,6 +43,9 @@ public class SecurityConfig {
                         // ✅ preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
+                        // ✅ Viktig: /error må være åpen ellers får du 401 i frontend når noe feiler
+                        .requestMatchers("/error").permitAll()
+
                         // ✅ frontend (statiske filer)
                         .requestMatchers(
                                 "/", "/index.html",
@@ -66,6 +69,7 @@ public class SecurityConfig {
                     res.getWriter().write("Unauthorized");
                 }))
 
+                // ✅ JWT filter før standard Spring Security filter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -75,7 +79,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
 
-        // ✅ Viktig: "allowedOrigins" må være eksakt match (ikke "*") når credentials=true
+        // ✅ Må være eksakt origin match når credentials=true
         cfg.setAllowedOrigins(List.of(
                 "https://job-tracker-0qv9.onrender.com",
                 "http://localhost:3000",
@@ -85,8 +89,13 @@ public class SecurityConfig {
         ));
 
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+
+        // ✅ viktig: content-type må være med + authorization
         cfg.setAllowedHeaders(List.of("Content-Type", "Accept", "Authorization"));
+
+        // ✅ cookies funker bare når dette er true
         cfg.setAllowCredentials(true);
+
         cfg.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();

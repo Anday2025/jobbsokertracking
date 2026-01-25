@@ -25,41 +25,24 @@ const state = {
   filter: "ALL",
   lang: localStorage.getItem(STORAGE_LANG) || "no",
 
-  // modal views:
-  // login | register | forgot | resend | reset
-  authView: "login",
-
-  // reset token from URL (?token=...)
-  resetToken: null,
+  // auth modal state
+  authView: "login",        // login | register | forgot | resend | reset
+  resetToken: null,         // token from URL (?token=...)
 };
 
 // =========================
-// i18n
+// i18n (minimal)
 // =========================
 const T = {
   no: {
     title: "Jobbsøker-tracker",
     subtitle: "Hold oversikt over søknadene dine.",
-
     login: "Logg inn",
     logout: "Logg ut",
     register: "Opprett bruker",
     email: "E-post",
     password: "Passord",
-
-    newPassword: "Nytt passord",
     confirmPassword: "Bekreft passord",
-    resetPassword: "Reset passord",
-    reset: "Reset",
-    back: "Tilbake",
-
-    resendVerification: "Resend verification",
-    forgotPassword: "Forgot password?",
-    send: "Send",
-
-    passMismatch: "passord ikke er samme",
-    weakPass: "Passordkrav: minst 8 tegn, stor/liten bokstav og tall",
-
     newApp: "Ny søknad",
     apps: "Søknader",
     add: "Legg til",
@@ -71,7 +54,6 @@ const T = {
     deadline: "Frist",
     status: "Status",
     del: "Slett",
-
     planned: "Planlagt",
     applied: "Søkt",
     interview: "Intervju",
@@ -79,34 +61,30 @@ const T = {
     offer: "Tilbud",
     all: "Alle",
 
+    // auth extras
+    forgotPassword: "Forgot password?",
+    resendVerification: "Resend verification",
+    send: "Send",
+    back: "Tilbake",
+    resetTitle: "Reset passord",
+    resetBtn: "Reset",
+    passwordMismatch: "Passord er ikke samme",
+    fillEmail: "Fyll inn e-post",
+    fillEmailAndPassword: "Fyll inn e-post og passord",
     regOk: "Bruker opprettet. Sjekk e-posten din for bekreftelseslenke.",
-    forgotOk: "Hvis e-post finnes, er reset-link sendt.",
-    resendOk: "Hvis e-post finnes, er ny verifikasjon sendt.",
-    resetOk: "Passord er oppdatert. Du kan logge inn nå ✅",
+    resetLinkSent: "Hvis e-post finnes, er reset-link sendt.",
+    verificationSent: "Hvis e-post finnes, er ny bekreftelse sendt.",
+    resetOk: "Passord er oppdatert. Du kan logge inn nå.",
   },
   en: {
     title: "Job tracker",
     subtitle: "Keep track of your applications.",
-
     login: "Sign in",
     logout: "Sign out",
     register: "Create account",
     email: "Email",
     password: "Password",
-
-    newPassword: "New password",
     confirmPassword: "Confirm password",
-    resetPassword: "Reset password",
-    reset: "Reset",
-    back: "Back",
-
-    resendVerification: "Resend verification",
-    forgotPassword: "Forgot password?",
-    send: "Send",
-
-    passMismatch: "Passwords do not match",
-    weakPass: "Password must be 8+ chars, upper/lowercase + number",
-
     newApp: "New application",
     apps: "Applications",
     add: "Add",
@@ -118,7 +96,6 @@ const T = {
     deadline: "Deadline",
     status: "Status",
     del: "Delete",
-
     planned: "Planned",
     applied: "Applied",
     interview: "Interview",
@@ -126,10 +103,19 @@ const T = {
     offer: "Offer",
     all: "All",
 
+    forgotPassword: "Forgot password?",
+    resendVerification: "Resend verification",
+    send: "Send",
+    back: "Back",
+    resetTitle: "Reset password",
+    resetBtn: "Reset",
+    passwordMismatch: "Passwords do not match",
+    fillEmail: "Enter email",
+    fillEmailAndPassword: "Enter email and password",
     regOk: "Account created. Check your email to verify your account.",
-    forgotOk: "If the email exists, a reset link has been sent.",
-    resendOk: "If the email exists, a new verification email has been sent.",
-    resetOk: "Password updated. You can sign in now ✅",
+    resetLinkSent: "If the email exists, a reset link was sent.",
+    verificationSent: "If the email exists, a new verification email was sent.",
+    resetOk: "Password updated. You can sign in now.",
   }
 };
 
@@ -138,10 +124,30 @@ function t(key) {
 }
 
 // =========================
-// DOM helper
+// DOM
 // =========================
 const $ = (sel) => document.querySelector(sel);
 
+const loginBtn = $("#loginBtn");
+const logoutBtn = $("#logoutBtn");
+const whoami = $("#whoami");
+const langBtn = $("#langBtn");
+
+const authModal = $("#authModal");
+const closeAuth = $("#closeAuth");
+const authForm = $("#authForm");
+const authTitle = $("#authTitle");
+
+// main app
+const createForm = $("#createForm");
+const formMsg = $("#formMsg");
+const stats = $("#stats");
+const listEl = $("#list");
+const filterBtns = Array.from(document.querySelectorAll(".filter"));
+
+// =========================
+// Helpers
+// =========================
 function setMsg(el, text, ok = false) {
   if (!el) return;
   el.textContent = text || "";
@@ -151,68 +157,22 @@ function setMsg(el, text, ok = false) {
 function show(el) { el?.classList.remove("hidden"); }
 function hide(el) { el?.classList.add("hidden"); }
 
-// =========================
-// DOM refs
-// =========================
-const loginBtn = $("#loginBtn");
-const logoutBtn = $("#logoutBtn");
-const whoami = $("#whoami");
-const langBtn = $("#langBtn");
-
-const authModal = $("#authModal");
-const closeAuth = $("#closeAuth");
-const authForm = $("#authForm");
-const authMsg = $("#authMsg");
-
-const createForm = $("#createForm");
-const formMsg = $("#formMsg");
-
-const stats = $("#stats");
-const listEl = $("#list");
-
-const filterBtns = Array.from(document.querySelectorAll(".filter"));
-
-// =========================
-// Modal open/close
-// =========================
 function openModal() {
   if (!authModal) return;
   authModal.classList.remove("hidden");
   document.body.classList.add("modalOpen");
-  setMsg(authMsg, "");
+  renderAuthView();
   setTimeout(() => {
-    const firstInput = authForm?.querySelector("input");
-    firstInput?.focus();
-  }, 30);
+    authForm?.querySelector("input")?.focus();
+  }, 40);
 }
 
 function closeModal() {
   if (!authModal) return;
   authModal.classList.add("hidden");
   document.body.classList.remove("modalOpen");
-  setMsg(authMsg, "");
 }
 
-// close modal by clicking backdrop
-authModal?.addEventListener("click", (e) => {
-  if (e.target === authModal) closeModal();
-});
-
-closeAuth?.addEventListener("click", (e) => {
-  e.preventDefault();
-  closeModal();
-});
-
-loginBtn?.addEventListener("click", (e) => {
-  e.preventDefault();
-  state.authView = "login";
-  renderAuthView();
-  openModal();
-});
-
-// =========================
-// Helpers
-// =========================
 function fmtDate(iso) {
   if (!iso) return "";
   if (state.lang === "no") {
@@ -233,23 +193,6 @@ function statusLabel(s) {
   }
 }
 
-function getQueryParam(name) {
-  const url = new URL(window.location.href);
-  return url.searchParams.get(name);
-}
-
-function removeQueryParam(name) {
-  const url = new URL(window.location.href);
-  url.searchParams.delete(name);
-  window.history.replaceState({}, "", url.toString());
-}
-
-function isStrongPassword(pw) {
-  if (!pw) return false;
-  // minst 8 tegn + stor + liten + tall
-  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(pw);
-}
-
 // Cookie-auth: viktig at vi inkluderer cookies
 async function apiFetch(url, options = {}) {
   const res = await fetch(url, {
@@ -264,60 +207,170 @@ async function apiFetch(url, options = {}) {
 }
 
 async function readError(res) {
+  // backend kan returnere plain text eller json
   const txt = await res.text().catch(() => "");
+  if (!txt) return `HTTP ${res.status}`;
   try {
-    const json = JSON.parse(txt);
-    if (json?.error) return json.error;
-  } catch {}
-  return txt || `HTTP ${res.status}`;
+    const obj = JSON.parse(txt);
+    return obj?.error || obj?.message || txt;
+  } catch {
+    return txt;
+  }
+}
+
+function getQueryToken() {
+  const url = new URL(window.location.href);
+  return url.searchParams.get("token");
+}
+
+function clearQueryToken() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("token");
+  window.history.replaceState({}, "", url.toString());
 }
 
 // =========================
-// Rendering (Main UI)
+// AUTH MODAL VIEWS
+// =========================
+function renderAuthView(message = "", ok = false) {
+  if (!authForm) return;
+
+  // Title
+  if (authTitle) {
+    if (state.authView === "reset") authTitle.textContent = t("resetTitle");
+    else if (state.authView === "register") authTitle.textContent = t("register");
+    else if (state.authView === "forgot") authTitle.textContent = t("forgotPassword");
+    else if (state.authView === "resend") authTitle.textContent = t("resendVerification");
+    else authTitle.textContent = t("login");
+  }
+
+  const baseLinks = `
+    <div class="modalLinks">
+      <button type="button" class="linkBtn" data-action="forgot">${t("forgotPassword")}</button>
+      <button type="button" class="linkBtn" data-action="resend">${t("resendVerification")}</button>
+    </div>
+  `;
+
+  const msgBlock = `<div id="authMsg" class="msg ${ok ? "ok" : ""}">${message || ""}</div>`;
+
+  if (state.authView === "login" || state.authView === "register") {
+    authForm.innerHTML = `
+      <input id="authEmail" type="email" autocomplete="email" placeholder="${t("email")}" required />
+      <input id="authPassword" type="password" autocomplete="current-password" placeholder="${t("password")}" required />
+
+      <div class="modalActions">
+        <button id="authSubmitBtn" class="btn primary" type="submit">
+          ${state.authView === "login" ? t("login") : t("register")}
+        </button>
+        <button id="toggleAuthMode" class="btn ghost" type="button">
+          ${state.authView === "login" ? t("register") : t("login")}
+        </button>
+      </div>
+      ${baseLinks}
+      ${msgBlock}
+    `;
+  }
+
+  if (state.authView === "forgot") {
+    authForm.innerHTML = `
+      <input id="fpEmail" type="email" autocomplete="email" placeholder="${t("email")}" required />
+      <div class="modalActions">
+        <button class="btn primary" type="submit">${t("send")}</button>
+        <button class="btn ghost" type="button" data-action="back">${t("back")}</button>
+      </div>
+      ${msgBlock}
+    `;
+  }
+
+  if (state.authView === "resend") {
+    authForm.innerHTML = `
+      <input id="rvEmail" type="email" autocomplete="email" placeholder="${t("email")}" required />
+      <div class="modalActions">
+        <button class="btn primary" type="submit">${t("send")}</button>
+        <button class="btn ghost" type="button" data-action="back">${t("back")}</button>
+      </div>
+      ${msgBlock}
+    `;
+  }
+
+  if (state.authView === "reset") {
+    authForm.innerHTML = `
+      <input id="rpNew" type="password" autocomplete="new-password" placeholder="${t("password")}" required />
+      <input id="rpConfirm" type="password" autocomplete="new-password" placeholder="${t("confirmPassword")}" required />
+
+      <div class="modalActions">
+        <button class="btn primary" type="submit">${t("resetBtn")}</button>
+        <button class="btn ghost" type="button" data-action="back">${t("back")}</button>
+      </div>
+      ${baseLinks}
+      ${msgBlock}
+    `;
+  }
+}
+
+function setAuthView(view, message = "", ok = false) {
+  state.authView = view;
+  renderAuthView(message, ok);
+}
+
+// =========================
+// Rendering (main app)
 // =========================
 function applyI18n() {
-  $("#t_title") && ($("#t_title").textContent = t("title"));
-  $("#t_subtitle") && ($("#t_subtitle").textContent = t("subtitle"));
+  const titleEl = $("#t_title");
+  const subEl = $("#t_subtitle");
+  if (titleEl) titleEl.textContent = t("title");
+  if (subEl) subEl.textContent = t("subtitle");
+
+  //if (loginBtn)t) {} // ignore
 
   if (loginBtn) loginBtn.textContent = t("login");
   if (logoutBtn) logoutBtn.textContent = t("logout");
   if (langBtn) langBtn.textContent = state.lang === "no" ? "NO/EN" : "EN/NO";
 
-  $("#t_newAppTitle") && ($("#t_newAppTitle").textContent = t("newApp"));
-  $("#t_appsTitle") && ($("#t_appsTitle").textContent = t("apps"));
-  $("#t_addBtn") && ($("#t_addBtn").textContent = t("add"));
+  const newAppTitle = $("#t_newAppTitle");
+  const appsTitle = $("#t_appsTitle");
+  const addBtn = $("#t_addBtn");
+  if (newAppTitle) newAppTitle.textContent = t("newApp");
+  if (appsTitle) appsTitle.textContent = t("apps");
+  if (addBtn) addBtn.textContent = t("add");
 
-  $("#t_f_all") && ($("#t_f_all").textContent = t("all"));
-  $("#t_f_planned") && ($("#t_f_planned").textContent = t("planned"));
-  $("#t_f_applied") && ($("#t_f_applied").textContent = t("applied"));
-  $("#t_f_interview") && ($("#t_f_interview").textContent = t("interview"));
-  $("#t_f_rejected") && ($("#t_f_rejected").textContent = t("rejected"));
-  $("#t_f_offer") && ($("#t_f_offer").textContent = t("offer"));
+  const fAll = $("#t_f_all");
+  const fPlanned = $("#t_f_planned");
+  const fApplied = $("#t_f_applied");
+  const fInterview = $("#t_f_interview");
+  const fRejected = $("#t_f_rejected");
+  const fOffer = $("#t_f_offer");
 
-  $("#t_companyLabel") && ($("#t_companyLabel").textContent = state.lang === "no" ? "Firma *" : "Company *");
-  $("#t_roleLabel") && ($("#t_roleLabel").textContent = state.lang === "no" ? "Stilling *" : "Role *");
-  $("#t_linkLabel") && ($("#t_linkLabel").textContent = t("link"));
-  $("#t_deadlineLabel") && ($("#t_deadlineLabel").textContent = t("deadline"));
+  if (fAll) fAll.textContent = t("all");
+  if (fPlanned) fPlanned.textContent = t("planned");
+  if (fApplied) fApplied.textContent = t("applied");
+  if (fInterview) fInterview.textContent = t("interview");
+  if (fRejected) fRejected.textContent = t("rejected");
+  if (fOffer) fOffer.textContent = t("offer");
 
-  $("#t_companyPh") && $("#t_companyPh").setAttribute("placeholder", state.lang === "no" ? "F.eks. NAV / Telenor" : "e.g. NAV / Telenor");
-  $("#t_rolePh") && $("#t_rolePh").setAttribute("placeholder", state.lang === "no" ? "F.eks. Junior utvikler" : "e.g. Junior developer");
-  $("#t_linkPh") && $("#t_linkPh").setAttribute("placeholder", "https://...");
+  const companyLabel = $("#t_companyLabel");
+  const roleLabel = $("#t_roleLabel");
+  const linkLabel = $("#t_linkLabel");
+  const deadlineLabel = $("#t_deadlineLabel");
+
+  if (companyLabel) companyLabel.textContent = state.lang === "no" ? "Firma *" : "Company *";
+  if (roleLabel) roleLabel.textContent = state.lang === "no" ? "Stilling *" : "Role *";
+  if (linkLabel) linkLabel.textContent = t("link");
+  if (deadlineLabel) deadlineLabel.textContent = t("deadline");
+
+  const companyPh = $("#t_companyPh");
+  const rolePh = $("#t_rolePh");
+  const linkPh = $("#t_linkPh");
+
+  if (companyPh) companyPh.setAttribute("placeholder", state.lang === "no" ? "F.eks. NAV / Telenor" : "e.g. NAV / Telenor");
+  if (rolePh) rolePh.setAttribute("placeholder", state.lang === "no" ? "F.eks. Junior utvikler" : "e.g. Junior developer");
+  if (linkPh) linkPh.setAttribute("placeholder", "https://...");
 
   const loginHint = $("#t_loginHint");
   const emptyLogin = $("#t_emptyLogin");
   if (loginHint) loginHint.textContent = t("loginHint");
   if (emptyLogin) emptyLogin.textContent = state.me ? t("empty") : t("emptyLogin");
-
-  // modal title
-  const authTitle = $("#authTitle");
-  if (authTitle) {
-    authTitle.textContent =
-        state.authView === "login" ? t("login")
-            : state.authView === "register" ? t("register")
-                : state.authView === "forgot" ? t("forgotPassword")
-                    : state.authView === "resend" ? t("resendVerification")
-                        : t("resetPassword");
-  }
 }
 
 function updateAuthUI() {
@@ -363,6 +416,7 @@ function renderList() {
 
   const apps = filteredApps();
   renderStats();
+
   listEl.innerHTML = "";
 
   if (!state.me) {
@@ -437,7 +491,6 @@ function renderList() {
       if (st === a.status) opt.selected = true;
       select.appendChild(opt);
     });
-
     select.addEventListener("change", async () => {
       try {
         await updateStatus(a.id, select.value);
@@ -467,119 +520,6 @@ function renderList() {
     item.appendChild(top);
     listEl.appendChild(item);
   }
-}
-
-// =========================
-// Auth modal rendering
-// =========================
-function renderAuthView() {
-  if (!authForm) return;
-
-  setMsg(authMsg, "");
-  applyI18n();
-
-  // Build dynamic content inside authForm
-  let html = "";
-
-  if (state.authView === "login" || state.authView === "register") {
-    html = `
-      <input id="authEmail" type="email" autocomplete="email" placeholder="${t("email")}" required />
-      <input id="authPassword" type="password" autocomplete="current-password" placeholder="${t("password")}" required />
-
-      <div class="modalActions">
-        <button id="authSubmitBtn" class="btn primary" type="submit">
-          ${state.authView === "login" ? t("login") : t("register")}
-        </button>
-
-        <button id="toggleAuthMode" class="btn ghost" type="button">
-          ${state.authView === "login" ? t("register") : t("login")}
-        </button>
-      </div>
-
-      <div class="modalLinks">
-        <button id="forgotBtn" class="linkBtn" type="button">${t("forgotPassword")}</button>
-        <button id="resendBtn" class="linkBtn" type="button">${t("resendVerification")}</button>
-      </div>
-
-      <div id="authMsg" class="msg"></div>
-    `;
-  }
-
-  if (state.authView === "forgot") {
-    html = `
-      <input id="authEmail" type="email" autocomplete="email" placeholder="${t("email")}" required />
-
-      <div class="modalActions">
-        <button class="btn primary" type="submit">${t("send")}</button>
-        <button id="backBtn" class="btn ghost" type="button">${t("back")}</button>
-      </div>
-
-      <div id="authMsg" class="msg"></div>
-    `;
-  }
-
-  if (state.authView === "resend") {
-    html = `
-      <input id="authEmail" type="email" autocomplete="email" placeholder="${t("email")}" required />
-
-      <div class="modalActions">
-        <button class="btn primary" type="submit">${t("send")}</button>
-        <button id="backBtn" class="btn ghost" type="button">${t("back")}</button>
-      </div>
-
-      <div id="authMsg" class="msg"></div>
-    `;
-  }
-
-  if (state.authView === "reset") {
-    html = `
-      <input id="newPassword" type="password" autocomplete="new-password" placeholder="${t("newPassword")}" required />
-      <input id="confirmPassword" type="password" autocomplete="new-password" placeholder="${t("confirmPassword")}" required />
-
-      <div class="modalActions">
-        <button class="btn primary" type="submit">${t("reset")}</button>
-        <button id="backBtn" class="btn ghost" type="button">${t("back")}</button>
-      </div>
-
-      <div id="authMsg" class="msg"></div>
-    `;
-  }
-
-  authForm.innerHTML = html;
-
-  // Update title
-  const authTitle = $("#authTitle");
-  if (authTitle) {
-    authTitle.textContent =
-        state.authView === "login" ? t("login")
-            : state.authView === "register" ? t("register")
-                : state.authView === "forgot" ? t("forgotPassword")
-                    : state.authView === "resend" ? t("resendVerification")
-                        : t("resetPassword");
-  }
-
-  // Wire buttons
-  const toggleAuthMode = $("#toggleAuthMode");
-  toggleAuthMode?.addEventListener("click", () => {
-    state.authView = state.authView === "login" ? "register" : "login";
-    renderAuthView();
-  });
-
-  $("#forgotBtn")?.addEventListener("click", () => {
-    state.authView = "forgot";
-    renderAuthView();
-  });
-
-  $("#resendBtn")?.addEventListener("click", () => {
-    state.authView = "resend";
-    renderAuthView();
-  });
-
-  $("#backBtn")?.addEventListener("click", () => {
-    // if reset view came from URL token, we still go back to login
-    state.authView = "login";
-    renderAuthView();
-  });
 }
 
 // =========================
@@ -702,35 +642,77 @@ async function deleteApp(id) {
 }
 
 // =========================
-// Modal submit handler (dynamic)
+// Events
 // =========================
-document.addEventListener("submit", async (e) => {
-  if (e.target !== authForm) return;
+loginBtn?.addEventListener("click", (e) => {
   e.preventDefault();
-  setMsg(authMsg, "");
+  setAuthView("login");
+  openModal();
+});
+
+closeAuth?.addEventListener("click", (e) => {
+  e.preventDefault();
+  closeModal();
+});
+
+// close modal by clicking backdrop
+authModal?.addEventListener("click", (e) => {
+  if (e.target === authModal) closeModal();
+});
+
+// AUTH modal click actions (buttons inside views)
+authForm?.addEventListener("click", async (e) => {
+  const btn = e.target?.closest?.("button");
+  if (!btn) return;
+
+  const action = btn.getAttribute("data-action");
+  if (!action) return;
+
+  e.preventDefault();
+
+  if (action === "forgot") {
+    setAuthView("forgot");
+    return;
+  }
+  if (action === "resend") {
+    setAuthView("resend");
+    return;
+  }
+  if (action === "back") {
+    // if came from reset token url, go to login anyway
+    setAuthView("login");
+    return;
+  }
+});
+
+// Toggle login/register
+authForm?.addEventListener("click", (e) => {
+  const toggle = e.target?.closest?.("#toggleAuthMode");
+  if (!toggle) return;
+
+  e.preventDefault();
+  setAuthView(state.authView === "login" ? "register" : "login");
+});
+
+// Auth submit (all views)
+authForm?.addEventListener("submit", async (e) => {
+  e.preventDefault();
 
   try {
     // LOGIN / REGISTER
     if (state.authView === "login" || state.authView === "register") {
-      const email = ($("#authEmail")?.value || "").trim().toLowerCase();
-      const password = $("#authPassword")?.value || "";
+      const email = (authForm.querySelector("#authEmail")?.value || "").trim().toLowerCase();
+      const password = authForm.querySelector("#authPassword")?.value || "";
 
       if (!email || !password) {
-        setMsg(authMsg, state.lang === "no" ? "Fyll inn e-post og passord" : "Enter email and password");
+        renderAuthView(t("fillEmailAndPassword"), false);
         return;
       }
 
       if (state.authView === "register") {
-        if (!isStrongPassword(password)) {
-          setMsg(authMsg, t("weakPass"));
-          return;
-        }
         await doRegister(email, password);
-
-        setMsg(authMsg, t("regOk"), true);
-        // go back to login automatically
-        state.authView = "login";
-        renderAuthView();
+        // show success and flip to login
+        setAuthView("login", t("regOk"), true);
         return;
       }
 
@@ -741,88 +723,62 @@ document.addEventListener("submit", async (e) => {
 
     // FORGOT PASSWORD
     if (state.authView === "forgot") {
-      const email = ($("#authEmail")?.value || "").trim().toLowerCase();
+      const email = (authForm.querySelector("#fpEmail")?.value || "").trim().toLowerCase();
       if (!email) {
-        setMsg(authMsg, state.lang === "no" ? "Skriv inn e-post" : "Enter email");
+        renderAuthView(t("fillEmail"), false);
         return;
       }
-
       await doForgotPassword(email);
-
-      setMsg(authMsg, t("forgotOk"), true);
-
-      // back to login automatically
-      state.authView = "login";
-      renderAuthView();
+      setAuthView("login", t("resetLinkSent"), true);
       return;
     }
 
     // RESEND VERIFICATION
     if (state.authView === "resend") {
-      const email = ($("#authEmail")?.value || "").trim().toLowerCase();
+      const email = (authForm.querySelector("#rvEmail")?.value || "").trim().toLowerCase();
       if (!email) {
-        setMsg(authMsg, state.lang === "no" ? "Skriv inn e-post" : "Enter email");
+        renderAuthView(t("fillEmail"), false);
         return;
       }
-
       await doResendVerification(email);
-
-      setMsg(authMsg, t("resendOk"), true);
-
-      // back to login automatically
-      state.authView = "login";
-      renderAuthView();
+      setAuthView("login", t("verificationSent"), true);
       return;
     }
 
     // RESET PASSWORD
     if (state.authView === "reset") {
-      const newPw = $("#newPassword")?.value || "";
-      const confirmPw = $("#confirmPassword")?.value || "";
+      const newPass = authForm.querySelector("#rpNew")?.value || "";
+      const confirm = authForm.querySelector("#rpConfirm")?.value || "";
 
-      if (!newPw || !confirmPw) {
-        setMsg(authMsg, state.lang === "no" ? "Fyll inn begge feltene" : "Fill in both fields");
-        return;
-      }
-
-      if (newPw !== confirmPw) {
-        setMsg(authMsg, t("passMismatch"));
-        return;
-      }
-
-      if (!isStrongPassword(newPw)) {
-        setMsg(authMsg, t("weakPass"));
+      if (newPass !== confirm) {
+        renderAuthView(t("passwordMismatch"), false);
         return;
       }
 
       if (!state.resetToken) {
-        setMsg(authMsg, state.lang === "no" ? "Token mangler" : "Missing token");
+        renderAuthView("Token mangler", false);
         return;
       }
 
-      await doResetPassword(state.resetToken, newPw);
+      await doResetPassword(state.resetToken, newPass);
 
-      setMsg(authMsg, t("resetOk"), true);
-
-      // Remove token from URL after success
-      removeQueryParam("token");
+      // ✅ Clear url token, switch back to login automatically
+      clearQueryToken();
       state.resetToken = null;
 
-      // back to login automatically
-      state.authView = "login";
-      renderAuthView();
+      // show ok message then go to login
+      setAuthView("login", t("resetOk"), true);
       return;
     }
 
   } catch (err) {
-    setMsg(authMsg, err?.message || "Noe gikk galt");
+    const msg = err?.message || "Noe gikk galt";
+    renderAuthView(msg, false);
     console.error(err);
   }
-}, true);
+});
 
-// =========================
-// Events (main buttons)
-// =========================
+// logout
 logoutBtn?.addEventListener("click", async () => {
   try {
     await doLogout();
@@ -838,8 +794,7 @@ createForm?.addEventListener("submit", async (e) => {
 
   if (!state.me) {
     setMsg(formMsg, t("loginHint"));
-    state.authView = "login";
-    renderAuthView();
+    setAuthView("login");
     openModal();
     return;
   }
@@ -881,7 +836,10 @@ langBtn?.addEventListener("click", () => {
   localStorage.setItem(STORAGE_LANG, state.lang);
   applyI18n();
   renderList();
-  renderAuthView();
+  // if modal open, re-render
+  if (authModal && !authModal.classList.contains("hidden")) {
+    renderAuthView();
+  }
 });
 
 // =========================
@@ -891,16 +849,12 @@ langBtn?.addEventListener("click", () => {
   applyI18n();
   updateAuthUI();
 
-  // ✅ Auto open reset view if URL has ?token=
-  const token = getQueryParam("token");
+  // ✅ If url has ?token=... => open reset view automatically
+  const token = getQueryToken();
   if (token) {
     state.resetToken = token;
-    state.authView = "reset";
-    renderAuthView();
+    setAuthView("reset");
     openModal();
-  } else {
-    state.authView = "login";
-    renderAuthView();
   }
 
   await loadMe();
