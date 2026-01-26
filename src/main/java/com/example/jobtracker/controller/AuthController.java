@@ -274,10 +274,11 @@ public class AuthController {
         prt.setUsed(true);
         passwordResetRepo.save(prt);
 
-// ✅ send email confirmation
+// ✅ Send email confirmation
         mailService.sendPasswordChangedEmail(u.getEmail());
 
         return ResponseEntity.ok(Map.of("ok", true, "message", "Passord er oppdatert."));
+
 
     }
 }
