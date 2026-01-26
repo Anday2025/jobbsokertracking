@@ -1,5 +1,6 @@
 package com.example.jobtracker.service;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
@@ -15,22 +16,34 @@ public class MailgunClient {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    // US: https://api.mailgun.net
-    // EU: https://api.eu.mailgun.net
-    private String baseUrl() {
-        String base = System.getenv().getOrDefault("MAILGUN_BASE_URL", "https://api.eu.mailgun.net").trim();
-        if (base.isBlank()) base = "https://api.eu.mailgun.net";
-        return base;
+    // ✅ Du har denne i Render (du sa den er "eu")
+    @Value("${MAILGUN_BASE_URL:}")
+    private String mailgunBaseUrl;
+
+    private String resolveHost() {
+        // Default US
+        String host = "https://api.mailgun.net";
+
+        if (mailgunBaseUrl == null || mailgunBaseUrl.isBlank()) {
+            return host;
+        }
+
+        // Hvis du setter "eu" i Render -> EU endpoint
+        if ("eu".equalsIgnoreCase(mailgunBaseUrl.trim())) {
+            return "https://api.eu.mailgun.net";
+        }
+
+        // Hvis du setter en full URL i env, f.eks:
+        // MAILGUN_BASE_URL=https://api.eu.mailgun.net
+        if (mailgunBaseUrl.startsWith("http")) {
+            return mailgunBaseUrl.trim().replaceAll("/$", "");
+        }
+
+        return host;
     }
 
     public void sendEmail(String apiKey, String domain, String from, String to, String subject, String text) {
-        sendEmail(apiKey, domain, from, to, subject, text, null);
-    }
-
-    public void sendEmail(String apiKey, String domain, String from, String to,
-                          String subject, String text, String html) {
-
-        String url = baseUrl() + "/v3/" + domain + "/messages";
+        String url = resolveHost() + "/v3/" + domain + "/messages";
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
@@ -49,9 +62,6 @@ public class MailgunClient {
         if (text != null && !text.isBlank()) {
             form.add("text", text);
         }
-        if (html != null && !html.isBlank()) {
-            form.add("html", html);
-        }
 
         HttpEntity<MultiValueMap<String, String>> req = new HttpEntity<>(form, headers);
 
@@ -63,7 +73,7 @@ public class MailgunClient {
             }
 
         } catch (RestClientResponseException e) {
-            // ✅ Mailgun gir ofte nyttig feilmelding i body (f.eks 401/403)
+            // ✅ FIX: getRawStatusCode() -> getStatusCode().value()
             throw new RuntimeException(
                     "Mailgun error: HTTP " + e.getStatusCode().value() + " body=" + e.getResponseBodyAsString(),
                     e
