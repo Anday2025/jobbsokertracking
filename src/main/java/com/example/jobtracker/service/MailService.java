@@ -14,6 +14,9 @@ public class MailService {
     @Value("${MAILGUN_DOMAIN:}")
     private String domain;
 
+    @Value("${MAILGUN_BASE_URL:https://api.mailgun.net}")
+    private String baseUrl;
+
     @Value("${MAIL_FROM:}")
     private String from;
 
@@ -23,19 +26,15 @@ public class MailService {
 
     private void require(String value, String name) {
         if (value == null || value.isBlank()) {
-            throw new IllegalStateException(name + " mangler i Environment (Render)");
+            throw new IllegalStateException(name + " mangler i Render env");
         }
     }
 
-    private void validateCommon(String to) {
+    // ---------- VERIFY ----------
+    public void sendVerificationEmail(String to, String link) {
         require(apiKey, "MAILGUN_API_KEY");
         require(domain, "MAILGUN_DOMAIN");
         require(from, "MAIL_FROM");
-        require(to, "TO");
-    }
-
-    public void sendVerificationEmail(String to, String link) {
-        validateCommon(to);
 
         String subject = "Bekreft e-post for Jobbsøker-tracker";
         String text = """
@@ -44,15 +43,20 @@ public class MailService {
                 Klikk her for å aktivere brukeren din:
                 %s
 
+                Hvis du ikke opprettet konto, ignorer denne e-posten.
+
                 Hilsen
                 Jobbsøker-tracker
                 """.formatted(link);
 
-        mailgunClient.sendEmail(apiKey, domain, from, to, subject, text);
+        mailgunClient.sendEmail(apiKey, domain, baseUrl, from, to, subject, text);
     }
 
+    // ---------- RESET PASSWORD ----------
     public void sendResetPasswordEmail(String to, String resetUrl) {
-        validateCommon(to);
+        require(apiKey, "MAILGUN_API_KEY");
+        require(domain, "MAILGUN_DOMAIN");
+        require(from, "MAIL_FROM");
 
         String subject = "Reset passord";
         String text = """
@@ -61,31 +65,33 @@ public class MailService {
                 Klikk her for å resette passordet ditt:
                 %s
 
-                Denne linken utløper om 30 minutter.
+                Linken utløper om 30 minutter.
+                Hvis du ikke ba om dette, ignorer meldingen.
 
                 Hilsen
                 Jobbsøker-tracker
                 """.formatted(resetUrl);
 
-        mailgunClient.sendEmail(apiKey, domain, from, to, subject, text);
+        mailgunClient.sendEmail(apiKey, domain, baseUrl, from, to, subject, text);
     }
 
-    // ✅ NY: E-post etter vellykket reset
+    // ---------- PASSWORD CHANGED CONFIRM ----------
     public void sendPasswordChangedEmail(String to) {
-        validateCommon(to);
+        require(apiKey, "MAILGUN_API_KEY");
+        require(domain, "MAILGUN_DOMAIN");
+        require(from, "MAIL_FROM");
 
-        String subject = "Passordet ditt er endret";
+        String subject = "Passordet ditt ble endret";
         String text = """
                 Hei!
 
-                Passordet ditt i Jobbsøker-tracker er nå endret ✅
-
-                Hvis det ikke var deg, anbefaler vi at du resetter passordet med en gang.
+                Passordet ditt ble nylig endret.
+                Hvis dette ikke var deg, kontakt support umiddelbart.
 
                 Hilsen
                 Jobbsøker-tracker
                 """;
 
-        mailgunClient.sendEmail(apiKey, domain, from, to, subject, text);
+        mailgunClient.sendEmail(apiKey, domain, baseUrl, from, to, subject, text);
     }
 }
