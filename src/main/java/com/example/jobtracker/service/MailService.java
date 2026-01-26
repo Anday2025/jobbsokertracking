@@ -27,15 +27,16 @@ public class MailService {
         }
     }
 
-    private void requireMailgun() {
+    private void validateCommon(String to) {
         require(apiKey, "MAILGUN_API_KEY");
         require(domain, "MAILGUN_DOMAIN");
         require(from, "MAIL_FROM");
+        require(to, "TO");
     }
 
+    // ✅ 1) Verification mail
     public void sendVerificationEmail(String to, String link) {
-        requireMailgun();
-        require(to, "TO");
+        validateCommon(to);
 
         String subject = "Bekreft e-post for Jobbsøker-tracker";
         String text = """
@@ -44,7 +45,7 @@ public class MailService {
                 Klikk her for å aktivere brukeren din:
                 %s
 
-                Hvis du ikke har opprettet konto, kan du ignorere denne e-posten.
+                Denne linken utløper om 24 timer.
 
                 Hilsen
                 Jobbsøker-tracker
@@ -53,19 +54,21 @@ public class MailService {
         mailgunClient.sendEmail(apiKey, domain, from, to, subject, text);
     }
 
+    // ✅ 2) Reset password mail
     public void sendResetPasswordEmail(String to, String resetUrl) {
-        requireMailgun();
-        require(to, "TO");
+        validateCommon(to);
 
-        String subject = "Reset passord - Jobbsøker-tracker";
+        String subject = "Reset passord";
         String text = """
                 Hei!
 
-                Klikk her for å resette passordet ditt:
+                Du har bedt om å resette passordet ditt.
+                Klikk på linken under for å velge nytt passord:
+
                 %s
 
                 Denne linken utløper om 30 minutter.
-                Hvis du ikke ba om å resette passord, kan du ignorere denne e-posten.
+                Hvis du ikke ba om dette, kan du ignorere e-posten.
 
                 Hilsen
                 Jobbsøker-tracker
@@ -74,20 +77,19 @@ public class MailService {
         mailgunClient.sendEmail(apiKey, domain, from, to, subject, text);
     }
 
-    // ✅ ny: Send bekreftelse når passord er endret
+    // ✅ 3) Confirmation after password change
     public void sendPasswordChangedEmail(String to) {
-        requireMailgun();
-        require(to, "TO");
+        validateCommon(to);
 
-        String subject = "Passord endret - Jobbsøker-tracker";
+        String subject = "Passordet ditt er endret ✅";
         String text = """
                 Hei!
 
-                Passordet ditt er nå endret ✅
+                Passordet ditt for Jobbsøker-tracker ble nettopp endret.
 
-                Hvis det ikke var deg, anbefaler vi at du:
-                1) resetter passord på nytt
-                2) kontakter support / eier av appen
+                Hvis du ikke gjorde dette selv, anbefaler vi at du:
+                1) Resetter passordet umiddelbart
+                2) Kontakter support
 
                 Hilsen
                 Jobbsøker-tracker
