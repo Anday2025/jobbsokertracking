@@ -322,7 +322,7 @@ function applyI18n() {
   if (titleEl) titleEl.textContent = t("title");
   if (subEl) subEl.textContent = t("subtitle");
 
-  if (loginBtn) { /* ignore */ }
+  if (loginBtn) { }
 
 
   if (loginBtn) loginBtn.textContent = t("login");

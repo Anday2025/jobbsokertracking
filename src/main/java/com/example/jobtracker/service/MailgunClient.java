@@ -18,8 +18,8 @@ public class MailgunClient {
     // US: https://api.mailgun.net
     // EU: https://api.eu.mailgun.net
     private String baseUrl() {
-        String base = System.getenv().getOrDefault("MAILGUN_BASE_URL", "https://api.mailgun.net").trim();
-        if (base.isBlank()) base = "https://api.mailgun.net";
+        String base = System.getenv().getOrDefault("MAILGUN_BASE_URL", "https://api.eu.mailgun.net").trim();
+        if (base.isBlank()) base = "https://api.eu.mailgun.net";
         return base;
     }
 

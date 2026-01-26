@@ -39,15 +39,15 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                .authorizeHttpRequests(auth -> auth
+                // Viktig: IKKE aktiver formLogin/basicAuth i en JWT-cookie app
+                .httpBasic(b -> b.disable())
+                .formLogin(f -> f.disable())
 
-                        // ✅ Preflight (CORS)
+                .authorizeHttpRequests(auth -> auth
+                        // ✅ Preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // ✅ Viktig: Spring sitt error-endepunkt
-                        .requestMatchers("/error").permitAll()
-
-                        // ✅ Frontend (statiske filer)
+                        // ✅ Frontend + statiske filer
                         .requestMatchers(
                                 "/", "/index.html",
                                 "/styles.css", "/app.js",
@@ -57,10 +57,10 @@ public class SecurityConfig {
                                 "/**/*.svg", "/**/*.webp", "/**/*.ico", "/**/*.map"
                         ).permitAll()
 
-                        // ✅ Auth (register/login/verify/forgot/reset/resend)
+                        // ✅ Auth endpoints (register/login/verify/forgot/reset/resend)
                         .requestMatchers("/api/auth/**").permitAll()
 
-                        // ✅ Alt annet må være innlogget
+                        // ✅ Resten krever login
                         .anyRequest().authenticated()
                 )
 
@@ -79,11 +79,8 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
 
-        // ✅ Når credentials=true kan du IKKE bruke "*"
         cfg.setAllowedOrigins(List.of(
                 "https://job-tracker-0qv9.onrender.com",
-
-                // dev
                 "http://localhost:3000",
                 "http://localhost:5173",
                 "http://localhost:8080",
@@ -91,12 +88,8 @@ public class SecurityConfig {
         ));
 
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-
         cfg.setAllowedHeaders(List.of("Content-Type", "Accept", "Authorization"));
-
-        // ✅ viktig for cookies (SESSION)
         cfg.setAllowCredentials(true);
-
         cfg.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();
