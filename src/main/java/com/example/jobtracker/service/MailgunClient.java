@@ -4,7 +4,7 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 
 import java.nio.charset.StandardCharsets;
@@ -15,50 +15,55 @@ public class MailgunClient {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    /**
-     * baseUrl eksempel:
-     *   - https://api.mailgun.net
-     *   - https://api.eu.mailgun.net   (EU region)
-     */
-    public void sendEmail(
-            String apiKey,
-            String baseUrl,
-            String domain,
-            String from,
-            String to,
-            String subject,
-            String text,
-            String html
-    ) {
-        if (apiKey == null || apiKey.isBlank()) throw new IllegalArgumentException("MAILGUN_API_KEY mangler");
-        if (domain == null || domain.isBlank()) throw new IllegalArgumentException("MAILGUN_DOMAIN mangler");
-        if (from == null || from.isBlank()) throw new IllegalArgumentException("MAIL_FROM mangler");
-        if (to == null || to.isBlank()) throw new IllegalArgumentException("to mangler");
-        if (subject == null) subject = "";
-        if (baseUrl == null || baseUrl.isBlank()) baseUrl = "https://api.mailgun.net";
+    private static String env(String key) {
+        return System.getenv(key) == null ? "" : System.getenv(key).trim();
+    }
 
-        // Normaliser baseUrl (fjern trailing slash)
-        baseUrl = baseUrl.trim();
-        while (baseUrl.endsWith("/")) baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+    private static String normalizeBaseUrl(String raw) {
+        if (raw == null) return "https://api.mailgun.net";
+        String v = raw.trim();
+        if (v.isBlank()) return "https://api.mailgun.net";
 
-        String url = baseUrl + "/v3/" + domain.trim() + "/messages";
+        // hvis du har satt "eu" / "us"
+        if (v.equalsIgnoreCase("eu")) return "https://api.eu.mailgun.net";
+        if (v.equalsIgnoreCase("us")) return "https://api.mailgun.net";
+
+        // hvis du har satt full URL
+        if (v.startsWith("http://") || v.startsWith("https://")) {
+            // fjern trailing slash
+            return v.endsWith("/") ? v.substring(0, v.length() - 1) : v;
+        }
+
+        // fallback hvis noen har skrevet "api.eu.mailgun.net"
+        if (v.startsWith("api.")) return "https://" + v;
+
+        return "https://api.mailgun.net";
+    }
+
+    public void sendEmail(String from, String to, String subject, String text) {
+        String apiKey = env("MAILGUN_API_KEY");
+        String domain = env("MAILGUN_DOMAIN");
+        String baseUrl = normalizeBaseUrl(env("MAILGUN_BASE_URL"));
+
+        if (apiKey.isBlank()) throw new RuntimeException("MAILGUN_API_KEY mangler");
+        if (domain.isBlank()) throw new RuntimeException("MAILGUN_DOMAIN mangler");
+        if (from == null || from.isBlank()) throw new RuntimeException("MAIL_FROM mangler");
+        if (to == null || to.isBlank()) throw new RuntimeException("to mangler");
+
+        String url = baseUrl + "/v3/" + domain + "/messages";
+
+        // Basic auth: api:<key>
+        String basic = Base64.getEncoder().encodeToString(("api:" + apiKey).getBytes(StandardCharsets.UTF_8));
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-        headers.setAcceptCharset(java.util.List.of(StandardCharsets.UTF_8));
-
-        // Basic Auth: username="api", password=apiKey
-        String basic = "api:" + apiKey.trim();
-        String encoded = Base64.getEncoder().encodeToString(basic.getBytes(StandardCharsets.UTF_8));
-        headers.set(HttpHeaders.AUTHORIZATION, "Basic " + encoded);
+        headers.set("Authorization", "Basic " + basic);
 
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("from", from);
         form.add("to", to);
         form.add("subject", subject);
-
-        if (text != null && !text.isBlank()) form.add("text", text);
-        if (html != null && !html.isBlank()) form.add("html", html);
+        form.add("text", text);
 
         HttpEntity<MultiValueMap<String, String>> req = new HttpEntity<>(form, headers);
 
@@ -66,13 +71,14 @@ public class MailgunClient {
             ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.POST, req, String.class);
 
             if (!res.getStatusCode().is2xxSuccessful()) {
-                throw new RuntimeException("Mailgun failed: " + res.getStatusCode() + " body=" + res.getBody());
+                throw new RuntimeException("Mailgun failed: HTTP " + res.getStatusCode() + " body=" + res.getBody());
             }
-        } catch (RestClientResponseException e) {
-            // ✅ getRawStatusCode() => bruk getStatusCode().value()
-            int code = e.getStatusCode().value();
-            String body = e.getResponseBodyAsString();
-            throw new RuntimeException("Mailgun error: HTTP " + code + " body=" + body, e);
+        } catch (HttpStatusCodeException e) {
+            // Her får du status + body fra Mailgun (veldig nyttig)
+            throw new RuntimeException(
+                    "Mailgun error: HTTP " + e.getStatusCode() + " body=" + e.getResponseBodyAsString(),
+                    e
+            );
         } catch (Exception e) {
             throw new RuntimeException("Mailgun request failed: " + e.getMessage(), e);
         }

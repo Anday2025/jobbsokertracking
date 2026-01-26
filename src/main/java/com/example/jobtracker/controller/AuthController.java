@@ -140,12 +140,10 @@ public class AuthController {
         try {
             mailService.sendVerificationEmail(u.getEmail(), verifyUrl);
         } catch (Exception e) {
-            // @Transactional vil rulle tilbake user + token (bra!)
-            return ResponseEntity.status(500).body(Map.of(
-                    "error", "Kunne ikke sende verifiseringsmail. Sjekk Mailgun settings/region.",
-                    "details", e.getMessage()
-            ));
+            // kast RuntimeException -> @Transactional ruller tilbake (user + token blir ikke liggende)
+            throw new RuntimeException("Kunne ikke sende verifiseringsmail. Sjekk Mailgun settings/region.", e);
         }
+
 
         return ResponseEntity.ok(Map.of(
                 "ok", true,
