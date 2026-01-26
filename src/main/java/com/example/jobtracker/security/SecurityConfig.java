@@ -35,47 +35,41 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
         http
-                // ✅ API + cookie auth → vi bruker ikke CSRF her
                 .csrf(csrf -> csrf.disable())
-
-                // ✅ CORS config under
                 .cors(Customizer.withDefaults())
-
-                // ✅ JWT/cookie = stateless
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
                 .authorizeHttpRequests(auth -> auth
-                        // ✅ Preflight
+
+                        // ✅ Preflight (CORS)
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // ✅ Frontend + assets
+                        // ✅ Viktig: Spring sitt error-endepunkt
+                        .requestMatchers("/error").permitAll()
+
+                        // ✅ Frontend (statiske filer)
                         .requestMatchers(
                                 "/", "/index.html",
                                 "/styles.css", "/app.js",
                                 "/favicon.ico",
-                                "/**/*.css", "/**/*.js", "/**/*.map",
+                                "/**/*.css", "/**/*.js",
                                 "/**/*.png", "/**/*.jpg", "/**/*.jpeg",
-                                "/**/*.svg", "/**/*.webp", "/**/*.ico"
+                                "/**/*.svg", "/**/*.webp", "/**/*.ico", "/**/*.map"
                         ).permitAll()
 
-                        // ✅ Spring error endpoint (viktig for å slippe rare 401/redirect loops)
-                        .requestMatchers("/error").permitAll()
-
-                        // ✅ ALLE auth-endepunkter skal alltid være åpne
+                        // ✅ Auth (register/login/verify/forgot/reset/resend)
                         .requestMatchers("/api/auth/**").permitAll()
 
-                        // ✅ alt annet: må være innlogget
+                        // ✅ Alt annet må være innlogget
                         .anyRequest().authenticated()
                 )
 
-                // ✅ Når noen ikke er innlogget
                 .exceptionHandling(e -> e.authenticationEntryPoint((req, res, ex) -> {
                     res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     res.setContentType("text/plain; charset=utf-8");
                     res.getWriter().write("Unauthorized");
                 }))
 
-                // ✅ JWT-filter før username/password filter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -85,19 +79,25 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
 
-        // ✅ Bruk patterns (bedre enn allowedOrigins når credentials=true)
-        cfg.setAllowedOriginPatterns(List.of(
-                "https://*.onrender.com",
-                "http://localhost:*"
+        // ✅ Når credentials=true kan du IKKE bruke "*"
+        cfg.setAllowedOrigins(List.of(
+                "https://job-tracker-0qv9.onrender.com",
+
+                // dev
+                "http://localhost:3000",
+                "http://localhost:5173",
+                "http://localhost:8080",
+                "http://localhost:63342"
         ));
 
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        cfg.setAllowedHeaders(List.of("Content-Type", "Accept", "Authorization"));
-        cfg.setAllowCredentials(true);
-        cfg.setMaxAge(3600L);
 
-        // (valgfritt) hvis du vil lese Set-Cookie i browser devtools
-        cfg.setExposedHeaders(List.of("Set-Cookie"));
+        cfg.setAllowedHeaders(List.of("Content-Type", "Accept", "Authorization"));
+
+        // ✅ viktig for cookies (SESSION)
+        cfg.setAllowCredentials(true);
+
+        cfg.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();
         src.registerCorsConfiguration("/**", cfg);
