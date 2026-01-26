@@ -39,15 +39,14 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                // Viktig: IKKE aktiver formLogin/basicAuth i en JWT-cookie app
-                .httpBasic(b -> b.disable())
-                .formLogin(f -> f.disable())
-
                 .authorizeHttpRequests(auth -> auth
                         // ✅ Preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // ✅ Frontend + statiske filer
+                        // ✅ Auth skal alltid være åpen
+                        .requestMatchers("/api/auth/**").permitAll()
+
+                        // ✅ Statiske filer / frontend
                         .requestMatchers(
                                 "/", "/index.html",
                                 "/styles.css", "/app.js",
@@ -57,10 +56,7 @@ public class SecurityConfig {
                                 "/**/*.svg", "/**/*.webp", "/**/*.ico", "/**/*.map"
                         ).permitAll()
 
-                        // ✅ Auth endpoints (register/login/verify/forgot/reset/resend)
-                        .requestMatchers("/api/auth/**").permitAll()
-
-                        // ✅ Resten krever login
+                        // ✅ Alt annet krever login
                         .anyRequest().authenticated()
                 )
 
@@ -79,8 +75,11 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
 
+        // ✅ allowedOrigins må være eksakt når credentials=true
         cfg.setAllowedOrigins(List.of(
                 "https://job-tracker-0qv9.onrender.com",
+
+                // dev
                 "http://localhost:3000",
                 "http://localhost:5173",
                 "http://localhost:8080",

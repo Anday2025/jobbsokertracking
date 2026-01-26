@@ -16,40 +16,33 @@ public class MailgunClient {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    // ✅ Du har denne i Render (du sa den er "eu")
+    // ✅ "eu" eller "us" eller tom (default us)
     @Value("${MAILGUN_BASE_URL:}")
-    private String mailgunBaseUrl;
+    private String mailgunBase;
 
-    private String resolveHost() {
-        // Default US
-        String host = "https://api.mailgun.net";
+    private String resolveBaseUrl() {
+        String v = (mailgunBase == null ? "" : mailgunBase.trim().toLowerCase());
 
-        if (mailgunBaseUrl == null || mailgunBaseUrl.isBlank()) {
-            return host;
-        }
+        // Render env: MAILGUN_BASE_URL="eu"
+        if (v.equals("eu")) return "https://api.eu.mailgun.net";
+        if (v.equals("us") || v.isBlank()) return "https://api.mailgun.net";
 
-        // Hvis du setter "eu" i Render -> EU endpoint
-        if ("eu".equalsIgnoreCase(mailgunBaseUrl.trim())) {
-            return "https://api.eu.mailgun.net";
-        }
+        // hvis noen skriver full URL
+        if (v.startsWith("http")) return v;
 
-        // Hvis du setter en full URL i env, f.eks:
-        // MAILGUN_BASE_URL=https://api.eu.mailgun.net
-        if (mailgunBaseUrl.startsWith("http")) {
-            return mailgunBaseUrl.trim().replaceAll("/$", "");
-        }
-
-        return host;
+        // fallback
+        return "https://api.mailgun.net";
     }
 
     public void sendEmail(String apiKey, String domain, String from, String to, String subject, String text) {
-        String url = resolveHost() + "/v3/" + domain + "/messages";
+        String baseUrl = resolveBaseUrl();
+        String url = baseUrl + "/v3/" + domain + "/messages";
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
         headers.setAcceptCharset(java.util.List.of(StandardCharsets.UTF_8));
 
-        // Basic Auth: username = "api", password = apiKey
+        // Basic auth: api:APIKEY
         String basic = "api:" + apiKey;
         String encoded = Base64.getEncoder().encodeToString(basic.getBytes(StandardCharsets.UTF_8));
         headers.set("Authorization", "Basic " + encoded);
@@ -58,10 +51,7 @@ public class MailgunClient {
         form.add("from", from);
         form.add("to", to);
         form.add("subject", subject);
-
-        if (text != null && !text.isBlank()) {
-            form.add("text", text);
-        }
+        form.add("text", text);
 
         HttpEntity<MultiValueMap<String, String>> req = new HttpEntity<>(form, headers);
 
@@ -71,14 +61,11 @@ public class MailgunClient {
             if (!res.getStatusCode().is2xxSuccessful()) {
                 throw new RuntimeException("Mailgun failed: " + res.getStatusCode() + " body=" + res.getBody());
             }
-
         } catch (RestClientResponseException e) {
-            // ✅ FIX: getRawStatusCode() -> getStatusCode().value()
-            throw new RuntimeException(
-                    "Mailgun error: HTTP " + e.getStatusCode().value() + " body=" + e.getResponseBodyAsString(),
-                    e
-            );
-
+            // ✅ FIX: ikke bruk getRawStatusCode()
+            int code = e.getStatusCode().value();
+            String body = e.getResponseBodyAsString();
+            throw new RuntimeException("Mailgun error: HTTP " + code + " body=" + body, e);
         } catch (Exception e) {
             throw new RuntimeException("Mailgun request failed: " + e.getMessage(), e);
         }

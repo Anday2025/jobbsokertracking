@@ -34,7 +34,6 @@ public class MailService {
         require(to, "TO");
     }
 
-    // ✅ 1) Verification mail
     public void sendVerificationEmail(String to, String link) {
         validateCommon(to);
 
@@ -45,8 +44,6 @@ public class MailService {
                 Klikk her for å aktivere brukeren din:
                 %s
 
-                Denne linken utløper om 24 timer.
-
                 Hilsen
                 Jobbsøker-tracker
                 """.formatted(link);
@@ -54,7 +51,6 @@ public class MailService {
         mailgunClient.sendEmail(apiKey, domain, from, to, subject, text);
     }
 
-    // ✅ 2) Reset password mail
     public void sendResetPasswordEmail(String to, String resetUrl) {
         validateCommon(to);
 
@@ -62,13 +58,10 @@ public class MailService {
         String text = """
                 Hei!
 
-                Du har bedt om å resette passordet ditt.
-                Klikk på linken under for å velge nytt passord:
-
+                Klikk her for å resette passordet ditt:
                 %s
 
                 Denne linken utløper om 30 minutter.
-                Hvis du ikke ba om dette, kan du ignorere e-posten.
 
                 Hilsen
                 Jobbsøker-tracker
@@ -77,19 +70,17 @@ public class MailService {
         mailgunClient.sendEmail(apiKey, domain, from, to, subject, text);
     }
 
-    // ✅ 3) Confirmation after password change
+    // ✅ NY: E-post etter vellykket reset
     public void sendPasswordChangedEmail(String to) {
         validateCommon(to);
 
-        String subject = "Passordet ditt er endret ✅";
+        String subject = "Passordet ditt er endret";
         String text = """
                 Hei!
 
-                Passordet ditt for Jobbsøker-tracker ble nettopp endret.
+                Passordet ditt i Jobbsøker-tracker er nå endret ✅
 
-                Hvis du ikke gjorde dette selv, anbefaler vi at du:
-                1) Resetter passordet umiddelbart
-                2) Kontakter support
+                Hvis det ikke var deg, anbefaler vi at du resetter passordet med en gang.
 
                 Hilsen
                 Jobbsøker-tracker
