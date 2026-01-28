@@ -1,40 +1,52 @@
 package com.example.jobtracker.service;
 
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.*;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
+
+import java.time.Duration;
+import java.util.List;
 
 @Component
 public class MailgunClient {
 
     private final RestTemplate restTemplate;
 
-    public MailgunClient() {
-        this.restTemplate = new RestTemplate();
+    public MailgunClient(RestTemplateBuilder builder) {
+        this.restTemplate = builder
+                .requestFactory(HttpComponentsClientHttpRequestFactory::new)
+                .setConnectTimeout(Duration.ofSeconds(10))
+                .setReadTimeout(Duration.ofSeconds(20))
+                .build();
     }
 
-    /**
-     * Send e-post via Mailgun HTTP API
-     */
-    public void sendEmail(String from, String to, String subject, String text) {
-        String apiKey = env("MAILGUN_API_KEY");
-        String domain = env("MAILGUN_DOMAIN");
-        String baseUrl = resolveBaseUrl(System.getenv("MAILGUN_BASE_URL"));
+    public void sendEmail(
+            String apiKey,
+            String baseUrl,
+            String domain,
+            String from,
+            String to,
+            String subject,
+            String text
+    ) {
+        if (isBlank(apiKey)) throw new IllegalStateException("MAILGUN_API_KEY mangler");
+        if (isBlank(domain)) throw new IllegalStateException("MAILGUN_DOMAIN mangler");
+        if (isBlank(from)) throw new IllegalStateException("MAIL_FROM mangler");
+        if (isBlank(to)) throw new IllegalArgumentException("to mangler");
 
-        if (isBlank(apiKey) || isBlank(domain)) {
-            throw new RuntimeException("Mailgun er ikke konfigurert (MAILGUN_API_KEY / MAILGUN_DOMAIN mangler).");
-        }
-
-        // Riktig Mailgun endpoint:
-        // POST https://api.eu.mailgun.net/v3/<domain>/messages
-        String url = baseUrl + "/v3/" + domain + "/messages";
+        String apiBase = normalizeMailgunBaseUrl(baseUrl);
+        String url = apiBase + "/v3/" + domain.trim() + "/messages";
 
         HttpHeaders headers = new HttpHeaders();
-        headers.setBasicAuth("api", apiKey); // <- viktig: username må være "api"
+        headers.setBasicAuth("api", apiKey.trim()); // Mailgun: username = "api"
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
 
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("from", from);
@@ -48,57 +60,42 @@ public class MailgunClient {
             ResponseEntity<String> res = restTemplate.exchange(url, HttpMethod.POST, req, String.class);
 
             if (!res.getStatusCode().is2xxSuccessful()) {
-                throw new RuntimeException("Mailgun failed: HTTP " + res.getStatusCode().value()
-                        + " body=" + res.getBody());
+                throw new RuntimeException("Mailgun failed: HTTP " + res.getStatusCode().value() + " body=" + res.getBody());
             }
-        } catch (RestClientResponseException e) {
-            // ✅ Spring 6: bruk getStatusCode().value() (ikke getRawStatusCode)
+        } catch (HttpStatusCodeException e) {
+            // ✅ fikser “rød” linje / deprecated: getRawStatusCode -> getStatusCode().value()
             throw new RuntimeException(
-                    "Mailgun error: HTTP " + e.getStatusCode().value()
-                            + " body=" + safeBody(e.getResponseBodyAsString()),
+                    "Mailgun error: HTTP " + e.getStatusCode().value() + " body=" + e.getResponseBodyAsString(),
                     e
             );
+        } catch (ResourceAccessException e) {
+            throw new RuntimeException("Mailgun connection failed: " + e.getMessage(), e);
         } catch (Exception e) {
             throw new RuntimeException("Mailgun request failed: " + e.getMessage(), e);
         }
     }
 
-    // ---------------- helpers ----------------
+    private String normalizeMailgunBaseUrl(String baseUrl) {
+        String b = baseUrl == null ? "" : baseUrl.trim();
 
-    private static String resolveBaseUrl(String raw) {
-        String v = (raw == null) ? "" : raw.trim();
+        // Tillat at du setter "eu" / "us" også
+        if (b.equalsIgnoreCase("eu")) return "https://api.eu.mailgun.net";
+        if (b.equalsIgnoreCase("us")) return "https://api.mailgun.net";
 
-        // Tillat både: "eu" / "us" / full url
-        if (v.equalsIgnoreCase("eu")) return "https://api.eu.mailgun.net";
-        if (v.equalsIgnoreCase("us")) return "https://api.mailgun.net";
+        // Default hvis tom
+        if (b.isEmpty()) return "https://api.mailgun.net";
 
-        if (isBlank(v)) {
-            // Default til US hvis ikke satt
-            return "https://api.mailgun.net";
+        // Hvis noen skriver "api.eu.mailgun.net"
+        if (!b.startsWith("http://") && !b.startsWith("https://")) {
+            b = "https://" + b;
         }
 
-        // Hvis de har skrevet "api.eu.mailgun.net" uten https://
-        if (!v.startsWith("http://") && !v.startsWith("https://")) {
-            return "https://" + v;
-        }
-
-        // Fjern evt trailing slash
-        if (v.endsWith("/")) v = v.substring(0, v.length() - 1);
-        return v;
+        // Fjern trailing /
+        while (b.endsWith("/")) b = b.substring(0, b.length() - 1);
+        return b;
     }
 
-    private static String env(String key) {
-        String v = System.getenv(key);
-        return v == null ? "" : v.trim();
-    }
-
-    private static boolean isBlank(String s) {
+    private boolean isBlank(String s) {
         return s == null || s.trim().isEmpty();
-    }
-
-    private static String safeBody(String body) {
-        if (body == null) return "";
-        // unngå gigantiske logger
-        return body.length() > 2000 ? body.substring(0, 2000) + "..." : body;
     }
 }

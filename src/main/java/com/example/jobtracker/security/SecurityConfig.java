@@ -40,24 +40,16 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
                 .authorizeHttpRequests(auth -> auth
-                        // ✅ Preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // ✅ Auth skal alltid være åpen
+                        // ✅ åpne auth
                         .requestMatchers("/api/auth/**").permitAll()
 
-                        // ✅ Statiske filer / frontend
-                        .requestMatchers(
-                                "/", "/index.html",
-                                "/styles.css", "/app.js",
-                                "/favicon.ico",
-                                "/**/*.css", "/**/*.js",
-                                "/**/*.png", "/**/*.jpg", "/**/*.jpeg",
-                                "/**/*.svg", "/**/*.webp", "/**/*.ico", "/**/*.map"
-                        ).permitAll()
+                        // ✅ resten av API krever login
+                        .requestMatchers("/api/**").authenticated()
 
-                        // ✅ Alt annet krever login
-                        .anyRequest().authenticated()
+                        // ✅ alt annet (frontend)
+                        .anyRequest().permitAll()
                 )
 
                 .exceptionHandling(e -> e.authenticationEntryPoint((req, res, ex) -> {
@@ -75,11 +67,8 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
 
-        // ✅ allowedOrigins må være eksakt når credentials=true
         cfg.setAllowedOrigins(List.of(
                 "https://job-tracker-0qv9.onrender.com",
-
-                // dev
                 "http://localhost:3000",
                 "http://localhost:5173",
                 "http://localhost:8080",
