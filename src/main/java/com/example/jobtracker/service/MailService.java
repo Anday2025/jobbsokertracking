@@ -1,5 +1,6 @@
 package com.example.jobtracker.service;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -7,67 +8,85 @@ public class MailService {
 
     private final MailgunClient mailgunClient;
 
-    private final String apiKey;
-    private final String domain;
-    private final String baseUrl;
-    private final String from;
+    @Value("${MAILGUN_API_KEY:}")
+    private String apiKey;
+
+    @Value("${MAILGUN_DOMAIN:}")
+    private String domain;
+
+    @Value("${MAIL_FROM:}")
+    private String from;
+
+    // ✅ Du sa du bruker: MAILGUN_BASE_URL = https://api.eu.mailgun.net
+    @Value("${MAILGUN_BASE_URL:https://api.mailgun.net}")
+    private String baseUrl;
 
     public MailService(MailgunClient mailgunClient) {
         this.mailgunClient = mailgunClient;
-
-        this.apiKey = env("MAILGUN_API_KEY");
-        this.domain = env("MAILGUN_DOMAIN");
-
-        // Du bruker dette: https://api.eu.mailgun.net ✅
-        this.baseUrl = envOr("MAILGUN_BASE_URL", "https://api.mailgun.net");
-
-        // Du har MAIL_FROM i Render; ellers fallback til postmaster@<domain>
-        this.from = envOr("MAIL_FROM", "Jobbsøker-tracker <postmaster@" + domain + ">");
     }
 
-    public void sendVerificationEmail(String to, String verifyUrl) {
-        String subject = "Bekreft e-posten din";
-        String text =
-                "Hei!\n\n" +
-                        "Klikk på lenken for å bekrefte e-posten din:\n" +
-                        verifyUrl + "\n\n" +
-                        "Hvis du ikke opprettet brukeren, kan du ignorere denne e-posten.\n";
-        send(to, subject, text);
+    private void require(String value, String name) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException(name + " mangler i Environment (Render)");
+        }
+    }
+
+    private void sendViaMailgun(String to, String subject, String text) {
+        require(apiKey, "MAILGUN_API_KEY");
+        require(domain, "MAILGUN_DOMAIN");
+        require(from, "MAIL_FROM");
+        require(to, "TO");
+        require(baseUrl, "MAILGUN_BASE_URL");
+
+        mailgunClient.sendEmail(baseUrl, apiKey, domain, from, to, subject, text);
+    }
+
+    public void sendVerificationEmail(String to, String link) {
+        String subject = "Bekreft e-post for Jobbsøker-tracker";
+        String text = """
+                Hei!
+
+                Klikk her for å aktivere brukeren din:
+                %s
+
+                Hilsen
+                Jobbsøker-tracker
+                """.formatted(link);
+
+        sendViaMailgun(to, subject, text);
     }
 
     public void sendResetPasswordEmail(String to, String resetUrl) {
-        String subject = "Tilbakestill passord";
-        String text =
-                "Hei!\n\n" +
-                        "Klikk på lenken for å sette nytt passord:\n" +
-                        resetUrl + "\n\n" +
-                        "Lenken utløper om 30 minutter.\n";
-        send(to, subject, text);
+        String subject = "Reset passord";
+        String text = """
+                Hei!
+
+                Klikk her for å resette passordet ditt:
+                %s
+
+                Denne linken utløper om 30 minutter.
+
+                Hilsen
+                Jobbsøker-tracker
+                """.formatted(resetUrl);
+
+        sendViaMailgun(to, subject, text);
     }
 
+    // ✅ Sendes etter vellykket reset (AuthController kaller denne)
     public void sendPasswordChangedEmail(String to) {
-        String subject = "Passordet ditt ble endret";
-        String text =
-                "Hei!\n\n" +
-                        "Passordet ditt ble nettopp endret.\n" +
-                        "Hvis det ikke var deg, bør du tilbakestille passordet umiddelbart.\n";
-        send(to, subject, text);
-    }
+        String subject = "Passordet ditt er endret";
+        String text = """
+                Hei!
 
-    private void send(String to, String subject, String text) {
-        mailgunClient.sendEmail(apiKey, baseUrl, domain, from, to, subject, text);
-    }
+                Passordet ditt er nå endret.
 
-    private static String env(String key) {
-        String v = System.getenv(key);
-        if (v == null || v.trim().isEmpty()) {
-            throw new IllegalStateException("Env var mangler: " + key);
-        }
-        return v.trim();
-    }
+                Hvis dette ikke var deg, anbefaler vi at du reseter passordet umiddelbart.
 
-    private static String envOr(String key, String def) {
-        String v = System.getenv(key);
-        return (v == null || v.trim().isEmpty()) ? def : v.trim();
+                Hilsen
+                Jobbsøker-tracker
+                """;
+
+        sendViaMailgun(to, subject, text);
     }
 }
