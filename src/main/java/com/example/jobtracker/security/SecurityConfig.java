@@ -41,14 +41,8 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
-                        // ✅ åpne auth
                         .requestMatchers("/api/auth/**").permitAll()
-
-                        // ✅ resten av API krever login
                         .requestMatchers("/api/**").authenticated()
-
-                        // ✅ alt annet (frontend)
                         .anyRequest().permitAll()
                 )
 

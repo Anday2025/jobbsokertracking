@@ -23,21 +23,24 @@ public class MailService {
 
     private void sendViaMailgun(String to, String subject, String text) {
         require(from, "MAIL_FROM");
-        require(to, "TO");
+        require(to, "to");
 
-        // ✅ NY SIGNATUR
         mailgunClient.sendEmail(from, to, subject, text);
     }
 
     public void sendVerificationEmail(String to, String link) {
-        try {
-            sendViaMailgun(to, "Bekreft e-post for Jobbsøker-tracker",
-                    "Hei!\n\nKlikk her for å aktivere brukeren din:\n" + link + "\n\nHilsen\nJobbsøker-tracker");
-        } catch (Exception e) {
-            // Viktig: logg detaljene
-            System.err.println("Mailgun failed: " + e.getMessage());
-            throw e; // vi lar controller fange den (som i register())
-        }
+        String subject = "Bekreft e-post for Jobbsøker-tracker";
+        String text = """
+                Hei!
+
+                Klikk her for å aktivere brukeren din:
+                %s
+
+                Hilsen
+                Jobbsøker-tracker
+                """.formatted(link);
+
+        sendViaMailgun(to, subject, text);
     }
 
     public void sendResetPasswordEmail(String to, String link) {

@@ -31,8 +31,9 @@ public class AccountController {
                 .secure(secure)
                 .sameSite(sameSite)
                 .path("/")
-                .maxAge(Duration.ofSeconds(0))
+                .maxAge(Duration.ZERO)
                 .build();
+
         response.addHeader("Set-Cookie", cookie.toString());
     }
 
@@ -41,12 +42,12 @@ public class AccountController {
                                       HttpServletRequest request,
                                       HttpServletResponse response) {
         if (auth == null || !auth.isAuthenticated()) {
-            return ResponseEntity.status(401).body("Unauthorized");
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
         }
 
         String email = auth.getName().toLowerCase().trim();
         User u = userRepository.findByEmail(email).orElse(null);
-        if (u == null) return ResponseEntity.status(404).body("User not found");
+        if (u == null) return ResponseEntity.status(404).body(Map.of("error", "User not found"));
 
         userRepository.delete(u); // CASCADE tar token/apps
         clearSessionCookie(request, response);

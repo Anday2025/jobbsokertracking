@@ -16,18 +16,24 @@ public class MailgunClient {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    @Value("${MAILGUN_API_KEY}")
+    @Value("${MAILGUN_API_KEY:}")
     private String apiKey;
 
-    @Value("${MAILGUN_DOMAIN}")
+    @Value("${MAILGUN_DOMAIN:}")
     private String domain;
 
-    @Value("${MAILGUN_BASE_URL}")
+    @Value("${MAILGUN_BASE_URL:https://api.mailgun.net}")
     private String baseUrl;
 
     public void sendEmail(String from, String to, String subject, String text) {
 
-        String url = baseUrl + "/v3/" + domain + "/messages";
+        require(apiKey, "MAILGUN_API_KEY");
+        require(domain, "MAILGUN_DOMAIN");
+        require(baseUrl, "MAILGUN_BASE_URL");
+        require(from, "MAIL_FROM");
+
+        String cleanBase = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        String url = cleanBase + "/v3/" + domain + "/messages";
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
@@ -39,26 +45,28 @@ public class MailgunClient {
         form.add("subject", subject);
         form.add("text", text);
 
-        HttpEntity<MultiValueMap<String, String>> request =
-                new HttpEntity<>(form, headers);
+        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(form, headers);
 
         try {
-            ResponseEntity<String> response =
-                    restTemplate.postForEntity(url, request, String.class);
+            ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
 
             if (!response.getStatusCode().is2xxSuccessful()) {
-                throw new RuntimeException(
-                        "Mailgun failed: HTTP " + response.getStatusCode() +
-                                " body=" + response.getBody()
-                );
+                throw new RuntimeException("Mailgun failed: HTTP " + response.getStatusCode() + " body=" + response.getBody());
             }
 
         } catch (HttpStatusCodeException e) {
             throw new RuntimeException(
-                    "Mailgun error: HTTP " + e.getStatusCode() +
-                            " body=" + e.getResponseBodyAsString(),
+                    "Mailgun error: HTTP " + e.getStatusCode() + " body=" + e.getResponseBodyAsString(),
                     e
             );
+        } catch (Exception e) {
+            throw new RuntimeException("Mailgun request failed: " + e.getMessage(), e);
+        }
+    }
+
+    private void require(String value, String name) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException("Missing env var: " + name);
         }
     }
 
