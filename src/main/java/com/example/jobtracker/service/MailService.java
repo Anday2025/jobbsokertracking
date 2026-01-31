@@ -30,18 +30,14 @@ public class MailService {
     }
 
     public void sendVerificationEmail(String to, String link) {
-        String subject = "Bekreft e-post for Jobbsøker-tracker";
-        String text = """
-                Hei!
-
-                Klikk her for å aktivere brukeren din:
-                %s
-
-                Hilsen
-                Jobbsøker-tracker
-                """.formatted(link);
-
-        sendViaMailgun(to, subject, text);
+        try {
+            sendViaMailgun(to, "Bekreft e-post for Jobbsøker-tracker",
+                    "Hei!\n\nKlikk her for å aktivere brukeren din:\n" + link + "\n\nHilsen\nJobbsøker-tracker");
+        } catch (Exception e) {
+            // Viktig: logg detaljene
+            System.err.println("Mailgun failed: " + e.getMessage());
+            throw e; // vi lar controller fange den (som i register())
+        }
     }
 
     public void sendResetPasswordEmail(String to, String link) {
