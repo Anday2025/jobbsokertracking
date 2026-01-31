@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
 import java.nio.charset.StandardCharsets;
@@ -47,8 +48,14 @@ public class MailgunClient {
 
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(form, headers);
 
+        System.out.println("MAILGUN URL: " + url);
+        ResponseEntity<String> response = null;
+        System.out.println("MAILGUN STATUS: " + response.getStatusCode());
+        System.out.println("MAILGUN BODY: " + response.getBody());
+
+
         try {
-            ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
+            response = restTemplate.postForEntity(url, request, String.class);
 
             if (!response.getStatusCode().is2xxSuccessful()) {
                 throw new RuntimeException("Mailgun failed: HTTP " + response.getStatusCode() + " body=" + response.getBody());
@@ -68,6 +75,11 @@ public class MailgunClient {
         if (value == null || value.isBlank()) {
             throw new IllegalStateException("Missing env var: " + name);
         }
+
+        RestClientResponseException e = null;
+        System.err.println("MAILGUN ERROR STATUS: " + e.getStatusCode());
+        System.err.println("MAILGUN ERROR BODY: " + e.getResponseBodyAsString());
+
     }
 
     private String basicAuth(String user, String pass) {
