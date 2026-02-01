@@ -364,7 +364,7 @@ function applyI18n() {
   const rolePh = $("#t_rolePh");
   const linkPh = $("#t_linkPh");
 
-  if (companyPh) companyPh.setAttribute("placeholder", state.lang === "no" ? "F.eks. NAV / Telenor" : "e.g. NAV / Telenor");
+  if (companyPh) companyPh.setAttribute("placeholder", state.lang === "no" ? "F.eks. DNB / Telenor" : "e.g. DNB / Telenor");
   if (rolePh) rolePh.setAttribute("placeholder", state.lang === "no" ? "F.eks. Junior utvikler" : "e.g. Junior developer");
   if (linkPh) linkPh.setAttribute("placeholder", "https://...");
 

@@ -141,7 +141,7 @@ public class AuthController {
             mailService.sendVerificationEmail(pending.email(), verifyUrl);
             return ResponseEntity.ok(Map.of(
                     "ok", true,
-                    "message", "Bruker opprettet. Sjekk e-posten din for bekreftelse."
+                    "message", "Bruker opprettet. Sjekk e-posten din for bekreftelse, også i søppelpost."
             ));
         } catch (Exception e) {
             // Bruker er opprettet, men epost feilet
@@ -266,7 +266,7 @@ public class AuthController {
             ));
         }
 
-        return ResponseEntity.ok(Map.of("ok", true, "message", "Hvis e-post finnes, er reset-link sendt."));
+        return ResponseEntity.ok(Map.of("ok", true, "message", "Hvis e-post finnes, er reset-link sendt, Sjekk e-posten din for bekreftelse, også i søppelpost."));
     }
 
     // ---------------- RESET PASSWORD ----------------
