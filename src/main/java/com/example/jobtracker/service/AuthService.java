@@ -38,6 +38,9 @@ public class AuthService {
         return email == null ? "" : email.toLowerCase().trim();
     }
 
+    // -------------------------
+    // REGISTER (DB only)
+    // -------------------------
     @Transactional
     public PendingVerification createPendingUser(String email, String rawPassword) {
         String normalizedEmail = normEmail(email);
@@ -53,30 +56,56 @@ public class AuthService {
         user.setEnabled(false);
         userRepository.save(user);
 
+        // ✅ Opprett første verifiseringstoken
         String token = UUID.randomUUID().toString();
         Instant expiresAt = Instant.now().plus(Duration.ofHours(24));
+
         VerificationToken vt = new VerificationToken(token, user, expiresAt);
+        vt.setUsed(false);
         verificationTokenRepository.save(vt);
 
         return new PendingVerification(user.getEmail(), token);
     }
+
+    // -------------------------
+    // RESEND VERIFICATION (update-or-create)
+    // -------------------------
 
     @Transactional
     public String createNewVerificationToken(String email) {
         String normalizedEmail = normEmail(email);
 
         User user = userRepository.findByEmail(normalizedEmail).orElse(null);
-        if (user == null) return "";                // ikke avslør
-        if (user.isEnabled()) return "";            // allerede aktiv
+        if (user == null) return "";     // ikke avslør
+        if (user.isEnabled()) return ""; // allerede aktiv
 
-        String token = UUID.randomUUID().toString();
+        String newToken = UUID.randomUUID().toString();
         Instant expiresAt = Instant.now().plus(Duration.ofHours(24));
-        VerificationToken vt = new VerificationToken(token, user, expiresAt);
-        verificationTokenRepository.save(vt);
 
-        return token;
+        VerificationToken vt = verificationTokenRepository
+                .findByUser(user)
+                .orElse(null);
+
+        if (vt == null) {
+            // ingen eksisterende rad → opprett ny
+            vt = new VerificationToken(newToken, user, expiresAt);
+            vt.setUsed(false);
+            verificationTokenRepository.save(vt);
+        } else {
+            // eksisterer → oppdater samme rad (viktig pga UNIQUE user_id)
+            vt.setToken(newToken);
+            vt.setExpiresAt(expiresAt);
+            vt.setUsed(false);
+            verificationTokenRepository.save(vt);
+        }
+
+        return newToken;
     }
 
+
+    // -------------------------
+    // FORGOT PASSWORD (as-is)
+    // -------------------------
     @Transactional
     public String createPasswordResetToken(String email) {
         String normalizedEmail = normEmail(email);
@@ -88,6 +117,7 @@ public class AuthService {
         Instant expiresAt = Instant.now().plus(Duration.ofMinutes(30));
 
         PasswordResetToken prt = new PasswordResetToken(token, user, expiresAt);
+        prt.setUsed(false);
         passwordResetTokenRepository.save(prt);
 
         return token;

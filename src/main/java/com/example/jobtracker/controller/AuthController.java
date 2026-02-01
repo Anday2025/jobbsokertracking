@@ -115,8 +115,9 @@ public class AuthController {
             return ResponseEntity.badRequest().body(Map.of("error", "E-post mangler"));
         }
         if (!isStrongPassword(password)) {
-            return ResponseEntity.badRequest().body(Map.of("error",
-                    "Passordkrav: minst 8 tegn, stor/liten bokstav og tall"));
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Passordkrav: minst 8 tegn, stor/liten bokstav og tall"
+            ));
         }
 
         final AuthService.PendingVerification pending;
@@ -124,11 +125,11 @@ public class AuthController {
             // ✅ DB først (Transactional inni AuthService)
             pending = authService.createPendingUser(email, password);
         } catch (IllegalStateException e) {
-            // eksisterer / mangler epost
-            if (e.getMessage() != null && e.getMessage().toLowerCase().contains("allerede")) {
-                return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
+            String msg = (e.getMessage() == null) ? "Ugyldig forespørsel" : e.getMessage();
+            if (msg.toLowerCase().contains("allerede")) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", msg));
             }
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.badRequest().body(Map.of("error", msg));
         }
 
         String verifyUrl = getBaseUrl(request) + "/api/auth/verify?token=" + pending.token();
@@ -221,15 +222,23 @@ public class AuthController {
         String email = normEmail(body.get("email"));
         if (email.isBlank()) return ResponseEntity.badRequest().body(Map.of("error", "E-post mangler"));
 
+        // ✅ Vi returnerer OK uansett for ikke å “avsløre”
+        // Men internt lager vi token hvis user finnes og ikke er aktivert
         String token = authService.createNewVerificationToken(email);
 
-        // Returner OK uansett (ikke avslør)
-        if (token.isBlank()) return ResponseEntity.ok(Map.of("ok", true));
+        if (token == null || token.isBlank()) {
+            return ResponseEntity.ok(Map.of("ok", true));
+        }
+
+        // ✅ Bruk epost fra DB (sikkerhet/normalisering)
+        User u = userRepository.findByEmail(email).orElse(null);
+        if (u == null) return ResponseEntity.ok(Map.of("ok", true));
+        if (u.isEnabled()) return ResponseEntity.ok(Map.of("ok", true));
 
         String verifyUrl = getBaseUrl(request) + "/api/auth/verify?token=" + token;
 
         try {
-            mailService.sendVerificationEmail(email, verifyUrl);
+            mailService.sendVerificationEmail(u.getEmail(), verifyUrl);
             return ResponseEntity.ok(Map.of("ok", true, "message", "Ny bekreftelse sendt på e-post."));
         } catch (Exception e) {
             return ResponseEntity.status(200).body(Map.of(
@@ -250,14 +259,13 @@ public class AuthController {
         String token = authService.createPasswordResetToken(email);
 
         // Returner OK uansett (ikke avslør)
-        if (token.isBlank()) return ResponseEntity.ok(Map.of("ok", true));
+        if (token == null || token.isBlank()) return ResponseEntity.ok(Map.of("ok", true));
 
         String resetUrl = getBaseUrl(request) + "/?token=" + token;
 
         try {
             mailService.sendResetPasswordEmail(email, resetUrl);
         } catch (Exception e) {
-            // Ikke avslør, men gi “soft fail”
             return ResponseEntity.status(200).body(Map.of(
                     "ok", true,
                     "emailSent", false,
@@ -266,7 +274,10 @@ public class AuthController {
             ));
         }
 
-        return ResponseEntity.ok(Map.of("ok", true, "message", "Hvis e-post finnes, er reset-link sendt, Sjekk e-posten din for bekreftelse, også i søppelpost."));
+        return ResponseEntity.ok(Map.of(
+                "ok", true,
+                "message", "Hvis e-post finnes, er reset-link sendt. Sjekk e-posten din (og søppelpost)."
+        ));
     }
 
     // ---------------- RESET PASSWORD ----------------
@@ -279,8 +290,9 @@ public class AuthController {
         if (token.isBlank()) return ResponseEntity.badRequest().body(Map.of("error", "Token mangler"));
 
         if (!isStrongPassword(newPassword)) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", "Passordkrav: minst 8 tegn, stor/liten bokstav og tall"));
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Passordkrav: minst 8 tegn, stor/liten bokstav og tall"
+            ));
         }
 
         PasswordResetToken prt = passwordResetRepo.findById(token).orElse(null);
