@@ -175,7 +175,7 @@ function closeModal() {
 
 function fmtDate(iso) {
   if (!iso) return "";
-  if (state.lang === "no") {
+  if (state.lang === "no"){
     const [y, m, d] = iso.split("-");
     return `${d}/${m}/${y}`;
   }
