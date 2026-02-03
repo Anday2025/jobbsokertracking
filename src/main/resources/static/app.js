@@ -154,7 +154,7 @@ function setMsg(el, text, ok = false) {
   el.classList.toggle("ok", !!ok);
 }
 
-function show(el) { el?.classList.remove("hidden"); }
+function show(el) { el?.classList.remove("hidden");}
 function hide(el) { el?.classList.add("hidden"); }
 
 function openModal() {
