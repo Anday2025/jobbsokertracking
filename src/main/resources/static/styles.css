@@ -49,7 +49,7 @@ body::before {
   z-index: -2;
   pointer-events: none;
 
-  background-image: url("bilder/verden.png");
+  background-image: url("bilder/bilde1.png");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
