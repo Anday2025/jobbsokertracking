@@ -24,7 +24,7 @@ public class MailgunClient {
     private String domain;
 
     // eks: https://api.eu.mailgun.net  (EU)  eller https://api.mailgun.net (US)
-    @Value("${MAILGUN_BASE_URL:https://api.eu.mailgun.net}")
+    @Value("${MAILGUN_BASE_URL:https://api.mailgun.net}")
     private String baseUrl;
 
     // eks: Jobbsøker-tracker <postmaster@sandboxXXXX.mailgun.org>
