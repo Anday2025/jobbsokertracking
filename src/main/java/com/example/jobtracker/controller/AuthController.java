@@ -276,7 +276,7 @@ public class AuthController {
 
         return ResponseEntity.ok(Map.of(
                 "ok", true,
-                "message", "Hvis e-post finnes, er reset-link sendt. Sjekk e-posten din (og søppelpost)."
+                "message", "Hvis e-post finnes, er reset-link sendt. Sjekk e-posten din."
         ));
     }
 
