@@ -61,14 +61,14 @@ body::before {
   will-change: transform;
 }
 
-/* ✅ Mobil: slå av animasjon (bedre batteri/ytelse) */
+/* ✅ Mobil: slå av animasjon (bedre batteri/ytelse)
 @media (max-width: 768px) {
   body::before {
     animation: none;
     opacity: 0.38;
   }
 }
-
+*/
 body {
   margin: 0;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
