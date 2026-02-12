@@ -91,11 +91,11 @@ html::after {
   transform: translateZ(0);
 }
 
-/* ✅ Slå av animasjon kun hvis brukeren ønsker mindre bevegelse */
+/* ✅ Slå av animasjon kun hvis brukeren ønsker mindre bevegelse
 @media (prefers-reduced-motion: reduce) {
   html::before { animation: none; }
 }
-
+*/
 /* Hvis du fortsatt vil ha egen ekstra glow-div (valgfritt) */
 .bgGlow {
   position: fixed;
