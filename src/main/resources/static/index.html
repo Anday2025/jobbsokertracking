@@ -12,14 +12,12 @@
 
 <header class="container header">
     <!-- ✅ klikkbar logo -->
-    <a class="brand brandLink" href="/" aria-label="Gå til forsiden">
+    <a class="brand" href="/" aria-label="Gå til forsiden">
         <div class="logoText" aria-label="jobbsokertracking">
             <span class="logoGray">jobbsoker</span><span class="logoAccent">tracking</span>
         </div>
 
-        <p class="muted" id="t_subtitle">
-            Hold oversikt over søknadene dine.
-        </p>
+        <p class="muted" id="t_subtitle">Hold oversikt over søknadene dine.</p>
     </a>
 
     <div class="headerRight">
@@ -101,37 +99,7 @@
             <button id="closeAuth" class="iconBtn" type="button" aria-label="Lukk">×</button>
         </div>
 
-        <form id="authForm" class="modalForm">
-            <div id="authEmailRow" class="field">
-                <input id="authEmail" type="email" autocomplete="email" placeholder="E-post" required />
-            </div>
-
-            <div id="authPasswordRow" class="field">
-                <input id="authPassword" type="password" autocomplete="current-password" placeholder="Passord" required />
-            </div>
-
-            <div id="resetFields" class="hidden">
-                <div class="field">
-                    <input id="newPassword" type="password" autocomplete="new-password" placeholder="Nytt passord" />
-                </div>
-                <div class="field">
-                    <input id="confirmPassword" type="password" autocomplete="new-password" placeholder="Bekreft passord" />
-                </div>
-            </div>
-
-            <div class="modalActions">
-                <button id="authSubmitBtn" class="btn primary" type="submit">Logg inn</button>
-                <button id="toggleAuthMode" class="btn ghost" type="button">Opprett bruker</button>
-                <button id="backToLoginBtn" class="btn ghost hidden" type="button">Tilbake</button>
-            </div>
-
-            <div class="modalLinks">
-                <button id="forgotBtn" class="linkBtn" type="button">Forgot password?</button>
-                <button id="resendBtn" class="linkBtn" type="button">Resend verification</button>
-            </div>
-
-            <div id="authMsg" class="msg"></div>
-        </form>
+        <form id="authForm" class="modalForm"></form>
     </div>
 </div>
 
