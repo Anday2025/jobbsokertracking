@@ -1,9 +1,3 @@
-/* styles.css — FULL (roterende bakgrunnsbilde uten “kutt” i hjørnene)
-   ✅ Løsning: bruk inset:-40% + rotate() (ingen translate)
-   ✅ Bildesti: resources/static/bilder/verden.png
-*/
-
-/* ✅ Sakte 360° rotasjon */
 @keyframes slowRotate {
   from { transform: rotate(0deg) scale(1.12); }
   to   { transform: rotate(360deg) scale(1.12); }
@@ -13,9 +7,9 @@
   --bg:  #081A1A;
   --bg2: #041212;
 
-  --primary:  #14B8A6;  /* teal */
-  --primary2: #0D9488;  /* deep teal */
-  --accent:   #2DD4BF;  /* bright teal */
+  --primary:  #14B8A6;
+  --primary2: #0D9488;
+  --accent:   #2DD4BF;
 
   --card:  rgba(255,255,255,0.08);
   --card2: rgba(255,255,255,0.12);
@@ -32,11 +26,8 @@
 
 * { box-sizing: border-box; }
 html, body { height: 100%; }
-
-/* ✅ Unngå scrollbars pga stort roterende lag */
 html, body { overflow-x: hidden; }
 
-/* ✅ Stabil base bakgrunn (hindrer iPhone “lysner ved scroll”) */
 html {
   background: linear-gradient(180deg, var(--bg), var(--bg2));
 }
@@ -46,18 +37,13 @@ body {
   min-height: 100svh;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
   color: var(--text);
-
-  /* Stabil basefarge under alt */
   background-color: var(--bg);
 }
 
-/* ✅ Roterende bakgrunnsbilde (INGEN kutt i hjørner)
-   Flyttet til html::before for mer stabil iPhone-scroll.
-*/
 html::before {
   content: "";
   position: fixed;
-  inset: -40%;              /* 🔥 NØKKELEN: gjør laget større enn skjermen */
+  inset: -40%;
   z-index: -2;
   pointer-events: none;
 
@@ -72,14 +58,10 @@ html::before {
   opacity: 0.38;
   will-change: transform;
 
-  /* iOS-stabilitet uten translate i keyframes */
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }
 
-/* ✅ Overlay + premium glows over bildet (TEAL)
-   Flyttet til fast lag (html::after) for å unngå iPhone “farge skifter ved scroll”
-*/
 html::after {
   content: "";
   position: fixed;
@@ -88,33 +70,26 @@ html::after {
   pointer-events: none;
 
   background:
-    /* mørk overlay for lesbarhet (teal-tintet) */
-          linear-gradient(rgba(8,26,26,0.86), rgba(4,18,18,0.90)),
-
-            /* ✅ TEAL glows */
-          radial-gradient(1100px 560px at 15% 10%, rgba(20,184,166,0.26), transparent 62%),
-          radial-gradient(900px 520px at 85% 10%, rgba(13,148,136,0.22), transparent 62%),
-          radial-gradient(900px 520px at 50% 120%, rgba(45,212,191,0.18), transparent 62%),
-
-            /* fallback base */
-          linear-gradient(180deg, var(--bg), var(--bg2));
+    linear-gradient(rgba(8,26,26,0.86), rgba(4,18,18,0.90)),
+    radial-gradient(1100px 560px at 15% 10%, rgba(20,184,166,0.26), transparent 62%),
+    radial-gradient(900px 520px at 85% 10%, rgba(13,148,136,0.22), transparent 62%),
+    radial-gradient(900px 520px at 50% 120%, rgba(45,212,191,0.18), transparent 62%),
+    linear-gradient(180deg, var(--bg), var(--bg2));
 
   background-repeat: no-repeat;
 }
 
-/* Premium glow overlay (ekstra lag over rotasjonen) — TEAL */
 .bgGlow {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: -1; /* over roterende bilde, under innhold */
+  z-index: -1;
   background:
-          radial-gradient(900px 380px at 20% 100%, rgba(45,212,191,0.10), transparent 60%),
-          radial-gradient(900px 380px at 80% 100%, rgba(20,184,166,0.12), transparent 62%);
+    radial-gradient(900px 380px at 20% 100%, rgba(45,212,191,0.10), transparent 60%),
+    radial-gradient(900px 380px at 80% 100%, rgba(20,184,166,0.12), transparent 62%);
   opacity: 0.95;
 }
 
-/* Sørg for at innhold alltid ligger over bg */
 header, main, footer {
   position: relative;
   z-index: 1;
@@ -125,28 +100,81 @@ header, main, footer {
   margin: 0 auto;
 }
 
-/* Header */
+/* ✅ Sticky header */
 .header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 22px 0;
+
+  padding: 14px 0;
+  background: rgba(6, 25, 25, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
-.brand h1 {
-  margin: 0;
-  font-size: 28px;
-  letter-spacing: 0.3px;
+/* ✅ Brand */
+.brand{
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.brand p {
-  margin: 6px 0 0 0;
-}
+.brand p{ margin: 4px 0 0 0; }
 
 .headerRight {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+/* ✅ klikbar logo + hover */
+.brandLink{
+  text-decoration: none;
+  color: inherit;
+  border-radius: 14px;
+  padding: 6px 8px;
+  margin-left: -8px; /* gjør at hover-området føles naturlig */
+  transition: transform 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+}
+
+.brandLink:hover{
+  transform: translateY(-1px);
+  background: rgba(255,255,255,0.04);
+  box-shadow: 0 18px 30px rgba(0,0,0,0.18);
+}
+
+.brandLink:active{
+  transform: translateY(0px);
+}
+
+.brandLink:focus-visible{
+  outline: none;
+  box-shadow:
+    0 0 0 4px rgba(20,184,166,0.22),
+    0 18px 30px rgba(0,0,0,0.18);
+}
+
+/* ✅ Text-logo */
+.logoText{
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: 0.4px;
+  line-height: 1;
+}
+
+.logoGray{
+  color: rgba(255,255,255,0.92);
+}
+
+.logoAccent{
+  background: linear-gradient(90deg, var(--accent), var(--primary), var(--primary2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 /* Layout grid */
@@ -170,20 +198,16 @@ header, main, footer {
   box-shadow: var(--shadowSoft);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
 .card:hover {
   transform: translateY(-3px);
-  box-shadow: var(--shadow);
-
-  /* ✅ litt teal på hover */
   border-color: rgba(45,212,191,0.28);
   box-shadow:
-          0 22px 70px rgba(0,0,0,0.45),
-          0 0 0 1px rgba(20,184,166,0.10),
-          0 18px 50px rgba(20,184,166,0.10);
+    0 22px 70px rgba(0,0,0,0.45),
+    0 0 0 1px rgba(20,184,166,0.10),
+    0 18px 50px rgba(20,184,166,0.10);
 }
 
 .row {
@@ -197,10 +221,7 @@ header, main, footer {
 .small { font-size: 13px; }
 
 /* Form */
-.form label {
-  display: block;
-  margin: 12px 0;
-}
+.form label { display: block; margin: 12px 0; }
 
 .form label span {
   display: block;
@@ -222,20 +243,15 @@ input, select {
   transition: 0.15s ease;
 }
 
-input::placeholder {
-  color: rgba(255,255,255,0.45);
-}
+input::placeholder { color: rgba(255,255,255,0.45); }
 
-/* ✅ Hover/focus i teal */
-input:hover, select:hover {
-  border-color: rgba(45,212,191,0.22);
-}
+input:hover, select:hover { border-color: rgba(45,212,191,0.22); }
 
 input:focus, select:focus {
   border-color: rgba(45,212,191,0.55);
   box-shadow:
-          0 12px 26px rgba(20,184,166,0.18),
-          0 0 0 4px rgba(20,184,166,0.22);
+    0 12px 26px rgba(20,184,166,0.18),
+    0 0 0 4px rgba(20,184,166,0.22);
 }
 
 /* Buttons */
@@ -255,8 +271,6 @@ input:focus, select:focus {
   transform: translateY(-1px);
   box-shadow: 0 16px 26px rgba(0,0,0,0.30);
   background: rgba(255,255,255,0.12);
-
-  /* ✅ litt teal highlight */
   border-color: rgba(45,212,191,0.28);
 }
 
@@ -271,8 +285,8 @@ input:focus, select:focus {
 
 .btn.primary:hover {
   box-shadow:
-          0 22px 40px rgba(13,148,136,0.24),
-          0 0 0 1px rgba(45,212,191,0.10);
+    0 22px 40px rgba(13,148,136,0.24),
+    0 0 0 1px rgba(45,212,191,0.10);
 }
 
 .btn.ghost { background: rgba(255,255,255,0.06); }
@@ -315,7 +329,6 @@ input:focus, select:focus {
   border-color: rgba(45,212,191,0.22);
 }
 
-/* ✅ Active pill med accent (teal) */
 .filter.active {
   background: rgba(20,184,166,0.18);
   border-color: rgba(20,184,166,0.45);
@@ -480,70 +493,4 @@ input:focus, select:focus {
 
 .linkBtn:hover{
   text-decoration: underline;
-}
-
-
-/* ✅ Sticky header (logoen står fast ved scroll) */
-.header{
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-
-  /* litt “glass” bak headeren så den ikke blir borte i bakgrunnen */
-  background: rgba(6, 25, 25, 0.55);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-
-  /* gir litt luft */
-  padding: 14px 0;
-
-  /* gjør at innhold ikke ser avkuttet */
-  border-bottom: 1px solid rgba(255,255,255,0.08);
-}
-
-/* ✅ Gjør brand pen med logo + subtitle */
-.brand{
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  text-decoration: none;
-  color: inherit;
-}
-
-/* ✅ Logo størrelse */
-.brandLogo{
-  height: 44px;   /* juster: 36–52px */
-  width: auto;
-  display: block;
-}
-
-/* (valgfritt) litt mindre topp-margin på subtitle når den står under logo */
-.brand p{
-  margin: 0;
-}
-
-/* tekst logo */
-.logoText{
-  font-size: 28px;
-  font-weight: 900;
-  letter-spacing: 0.4px;
-}
-
-.logoGray{
-  color: rgba(255,255,255,0.85);
-}
-
-.logoBlue{
-  color: #1f8cff;
-}
-
-/* subtitle litt tettere */
-.brand p{
-  margin: 4px 0 0 0;
-}
-
-.logoBlue{
-  background: linear-gradient(90deg,#3aa3ff,#1f8cff);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
 }
