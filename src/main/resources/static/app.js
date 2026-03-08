@@ -1,6 +1,8 @@
-// =========================
-// Config
-// =========================
+/*
+KONFIGURASJON
+Her samles alle API-endepunktene som brukes i appen.
+Det gjør det enklere å vedlikeholde og endre URL-er senere.
+*/
 const API = {
   register: "/api/auth/register",
   login: "/api/auth/login",
@@ -16,9 +18,16 @@ const API = {
 
 const STORAGE_LANG = "lang"; // "no" | "en"
 
-// =========================
-// State
-// =========================
+
+/*
+GLOBAL STATE
+Her lagres data som appen bruker mens den kjører:
+- innlogget bruker
+- søknader
+- valgt filter
+- språk
+- hvilken auth-visning som er aktiv
+*/
 const state = {
   me: null,
   apps: [],
@@ -29,9 +38,12 @@ const state = {
   resetToken: null,
 };
 
-// =========================
-// i18n (minimal)
-// =========================
+
+/*
+SPRÅKSYSTEM (i18n)
+Denne blokken inneholder tekster på norsk og engelsk.
+Funksjonen t() henter riktig tekst basert på valgt språk.
+*/
 const T = {
   no: {
     subtitle: "Hold oversikt over søknadene dine.",
@@ -125,9 +137,12 @@ function t(key) {
   return (T[state.lang] && T[state.lang][key]) || key;
 }
 
-// =========================
-// DOM
-// =========================
+
+/*
+DOM-REFERANSER
+Her hentes elementer fra HTML slik at JavaScript kan oppdatere innhold,
+lytte på klikk og vise/skjule deler av siden.
+*/
 const $ = (sel) => document.querySelector(sel);
 
 const loginBtn = $("#loginBtn");
@@ -151,9 +166,16 @@ const progressLabel = $("#progressLabel");
 const progressPct = $("#progressPct");
 const progressFill = $("#progressFill");
 
-// =========================
-// Helpers
-// =========================
+
+/*
+HJELPEFUNKSJONER
+Små funksjoner som brukes flere steder:
+- vise meldinger
+- vise/skjule elementer
+- åpne/lukke modal
+- formatere dato
+- gjøre status mer lesbar
+*/
 function setMsg(el, text, ok = false) {
   if (!el) return;
   el.textContent = text || "";
@@ -204,7 +226,14 @@ function statusClass(status) {
   }
 }
 
-// Cookie-auth
+
+/*
+API-HJELPEFUNKSJONER
+Disse håndterer kommunikasjon med backend:
+- fetch med cookies
+- lesing av feilmeldinger
+- henting og fjerning av reset-token fra URL
+*/
 async function apiFetch(url, options = {}) {
   return fetch(url, {
     ...options,
@@ -237,9 +266,16 @@ function clearQueryToken() {
   window.history.replaceState({}, "", url.toString());
 }
 
-// =========================
-// AUTH MODAL VIEWS
-// =========================
+
+/*
+AUTH MODAL-VISNINGER
+Bygger innholdet i popup-vinduet dynamisk:
+- login
+- register
+- forgot password
+- resend verification
+- reset password
+*/
 function renderAuthView(message = "", ok = false) {
   if (!authForm) return;
 
@@ -318,9 +354,16 @@ function setAuthView(view, message = "", ok = false) {
   renderAuthView(message, ok);
 }
 
-// =========================
-// Rendering
-// =========================
+
+/*
+RENDERING AV UI
+Disse funksjonene oppdaterer det brukeren ser:
+- språk i grensesnittet
+- login/logout-visning
+- filtrerte søknader
+- statistikk og progressbar
+- listen over søknader
+*/
 function applyI18n() {
   const subEl = $("#t_subtitle");
   if (subEl) subEl.textContent = t("subtitle");
@@ -512,9 +555,11 @@ function renderList() {
   }
 }
 
-// =========================
-// API actions
-// =========================
+
+/*
+API-HANDLINGER
+Disse funksjonene snakker med backend og oppdaterer state.
+*/
 async function loadMe() {
   try {
     const res = await apiFetch(API.me, { method: "GET" });
@@ -615,9 +660,11 @@ async function deleteApp(id) {
   renderList();
 }
 
-// =========================
-// Events
-// =========================
+
+/*
+EVENT LISTENERS
+Her håndteres klikk, submit og brukerinteraksjoner i grensesnittet.
+*/
 loginBtn?.addEventListener("click", (e) => {
   e.preventDefault();
   setAuthView("login");
@@ -757,9 +804,15 @@ langBtn?.addEventListener("click", () => {
   if (authModal && !authModal.classList.contains("hidden")) renderAuthView();
 });
 
-// =========================
-// Init
-// =========================
+
+/*
+INIT
+Kjører når siden lastes:
+- setter språk
+- oppdaterer login-visning
+- sjekker reset-token
+- laster bruker og søknader
+*/
 (async function init() {
   applyI18n();
   updateAuthUI();
