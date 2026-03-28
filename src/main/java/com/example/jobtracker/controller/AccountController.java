@@ -12,16 +12,37 @@ import org.springframework.web.bind.annotation.*;
 import java.time.Duration;
 import java.util.Map;
 
+/**
+ * REST-controller for kontooperasjoner for autentiserte brukere.
+ * <p>
+ * Klassen håndterer handlinger relatert til brukerens egen konto,
+ * som for eksempel sletting av den innloggede brukeren.
+ */
 @RestController
 @RequestMapping("/api/account")
 public class AccountController {
 
     private final UserRepository userRepository;
 
+    /**
+     * Oppretter en ny {@code AccountController}.
+     *
+     * @param userRepository repository for oppslag og sletting av brukere
+     */
     public AccountController(UserRepository userRepository) {
         this.userRepository = userRepository;
     }
 
+    /**
+     * Tømmer sesjonscookien for den aktuelle klienten.
+     * <p>
+     * Metoden oppretter en ny {@code SESSION}-cookie med tom verdi
+     * og utløp umiddelbart, slik at eksisterende innloggingssesjon
+     * fjernes i nettleseren.
+     *
+     * @param request HTTP-forespørselen som brukes for å avgjøre om cookien skal være secure
+     * @param response HTTP-responsen som den nye cookie-headeren legges til på
+     */
     private void clearSessionCookie(HttpServletRequest request, HttpServletResponse response) {
         boolean secure = request.isSecure();
         String sameSite = secure ? "None" : "Lax";
@@ -37,6 +58,21 @@ public class AccountController {
         response.addHeader("Set-Cookie", cookie.toString());
     }
 
+    /**
+     * Sletter den innloggede brukerens konto.
+     * <p>
+     * Endepunktet henter brukeren fra autentiseringskonteksten, finner
+     * tilhørende bruker i databasen, sletter brukeren og tømmer deretter
+     * sesjonscookien. Dersom brukeren ikke er autentisert, returneres
+     * {@code 401 Unauthorized}. Dersom brukeren ikke finnes i databasen,
+     * returneres {@code 404 Not Found}.
+     *
+     * @param auth autentiseringsobjektet for gjeldende bruker
+     * @param request HTTP-forespørselen
+     * @param response HTTP-responsen
+     * @return en respons som bekrefter sletting, eller feilmelding dersom
+     * brukeren ikke er autentisert eller ikke finnes
+     */
     @DeleteMapping("/me")
     public ResponseEntity<?> deleteMe(Authentication auth,
                                       HttpServletRequest request,
