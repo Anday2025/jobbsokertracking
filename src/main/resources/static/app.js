@@ -1,7 +1,30 @@
+/**
+ * =========================================
+ * Jobbsøkertracking Frontend (app.js)
+ * =========================================
+ *
+ * Beskrivelse:
+ * Denne filen håndterer hele frontend-logikken i applikasjonen.
+ *
+ * Ansvar:
+ * - autentisering (login, register, logout)
+ * - API-kall mot backend
+ * - rendering av søknader, statistikk og progressbar
+ * - språkstøtte (norsk / engelsk)
+ * - dynamisk auth-modal
+ *
+ * Teknisk:
+ * - Vanilla JavaScript
+ * - REST API via fetch()
+ * - credentials: "include" for cookie-basert auth
+ * - state-basert UI-oppdatering
+ */
+
 /*
+=========================================
 KONFIGURASJON
-Her samles alle API-endepunktene som brukes i appen.
-Det gjør det enklere å vedlikeholde og endre URL-er senere.
+Samler alle API-endepunkter brukt i appen.
+=========================================
 */
 const API = {
   register: "/api/auth/register",
@@ -18,15 +41,11 @@ const API = {
 
 const STORAGE_LANG = "lang"; // "no" | "en"
 
-
 /*
+=========================================
 GLOBAL STATE
-Her lagres data som appen bruker mens den kjører:
-- innlogget bruker
-- søknader
-- valgt filter
-- språk
-- hvilken auth-visning som er aktiv
+Lagrer frontend-data mens appen kjører.
+=========================================
 */
 const state = {
   me: null,
@@ -38,11 +57,11 @@ const state = {
   resetToken: null,
 };
 
-
 /*
+=========================================
 SPRÅKSYSTEM (i18n)
-Denne blokken inneholder tekster på norsk og engelsk.
-Funksjonen t() henter riktig tekst basert på valgt språk.
+Tekster for norsk og engelsk UI.
+=========================================
 */
 const T = {
   no: {
@@ -87,6 +106,15 @@ const T = {
     resetLinkSent: "Hvis e-post finnes, er reset-link sendt.",
     verificationSent: "Hvis e-post finnes, er ny bekreftelse sendt.",
     resetOk: "Passord er oppdatert. Du kan logge inn nå.",
+    total: "Total",
+    missingToken: "Token mangler",
+    genericError: "Noe gikk galt",
+    error: "Feil",
+    companyLabel: "Firma *",
+    roleLabel: "Stilling *",
+    companyPlaceholder: "F.eks. DNB / Telenor",
+    rolePlaceholder: "F.eks. Junior utvikler",
+    appGoal: "søknader sendt (mål: 100)",
   },
   en: {
     subtitle: "Keep track of your applications.",
@@ -130,18 +158,33 @@ const T = {
     resetLinkSent: "If the email exists, a reset link was sent.",
     verificationSent: "If the email exists, a new verification email was sent.",
     resetOk: "Password updated. You can sign in now.",
+    total: "Total",
+    missingToken: "Missing token",
+    genericError: "Something went wrong",
+    error: "Error",
+    companyLabel: "Company *",
+    roleLabel: "Role *",
+    companyPlaceholder: "e.g. DNB / Telenor",
+    rolePlaceholder: "e.g. Junior developer",
+    appGoal: "sent (goal: 100)",
   }
 };
 
+/**
+ * Henter oversatt tekst basert på valgt språk.
+ *
+ * @param {string} key nøkkel i oversettelsestabellen
+ * @returns {string} oversatt tekst, eller selve nøkkelen hvis den mangler
+ */
 function t(key) {
   return (T[state.lang] && T[state.lang][key]) || key;
 }
 
-
 /*
+=========================================
 DOM-REFERANSER
-Her hentes elementer fra HTML slik at JavaScript kan oppdatere innhold,
-lytte på klikk og vise/skjule deler av siden.
+Samler ofte brukte HTML-elementer.
+=========================================
 */
 const $ = (sel) => document.querySelector(sel);
 
@@ -161,49 +204,88 @@ const stats = $("#stats");
 const listEl = $("#list");
 const filterBtns = Array.from(document.querySelectorAll(".filter"));
 
-// Progress DOM
 const progressLabel = $("#progressLabel");
 const progressPct = $("#progressPct");
 const progressFill = $("#progressFill");
 
-
 /*
+=========================================
 HJELPEFUNKSJONER
-Små funksjoner som brukes flere steder:
-- vise meldinger
-- vise/skjule elementer
-- åpne/lukke modal
-- formatere dato
-- gjøre status mer lesbar
+Gjenbrukbare småfunksjoner for UI.
+=========================================
 */
+
+/**
+ * Viser melding i et valgt element.
+ *
+ * @param {HTMLElement|null} el elementet meldingen skal vises i
+ * @param {string} text tekst som skal vises
+ * @param {boolean} ok om meldingen er positiv
+ */
 function setMsg(el, text, ok = false) {
   if (!el) return;
   el.textContent = text || "";
   el.classList.toggle("ok", !!ok);
 }
-function show(el) { el?.classList.remove("hidden"); }
-function hide(el) { el?.classList.add("hidden"); }
 
+/**
+ * Viser et element ved å fjerne hidden-klassen.
+ *
+ * @param {HTMLElement|null} el element som skal vises
+ */
+function show(el) {
+  el?.classList.remove("hidden");
+}
+
+/**
+ * Skjuler et element ved å legge til hidden-klassen.
+ *
+ * @param {HTMLElement|null} el element som skal skjules
+ */
+function hide(el) {
+  el?.classList.add("hidden");
+}
+
+/**
+ * Åpner auth-modal og fokuserer første inputfelt.
+ */
 function openModal() {
   if (!authModal) return;
   authModal.classList.remove("hidden");
   renderAuthView();
   setTimeout(() => authForm?.querySelector("input")?.focus(), 40);
 }
+
+/**
+ * Lukker auth-modal.
+ */
 function closeModal() {
   if (!authModal) return;
   authModal.classList.add("hidden");
 }
 
+/**
+ * Formaterer ISO-dato for visning.
+ * Norsk vises som DD/MM/YYYY.
+ *
+ * @param {string|null} iso dato i ISO-format
+ * @returns {string} formatert dato
+ */
 function fmtDate(iso) {
   if (!iso) return "";
   if (state.lang === "no") {
-    const [y,m,d] = iso.split("-");
+    const [y, m, d] = iso.split("-");
     return `${d}/${m}/${y}`;
   }
   return iso;
 }
 
+/**
+ * Gjør intern statuskode lesbar i UI.
+ *
+ * @param {string} s intern status
+ * @returns {string} oversatt statusetikett
+ */
 function statusLabel(s) {
   switch (s) {
     case "PLANLAGT": return t("planned");
@@ -215,25 +297,37 @@ function statusLabel(s) {
   }
 }
 
+/**
+ * Returnerer CSS-klasse basert på status.
+ *
+ * @param {string} status søknadsstatus
+ * @returns {string} CSS-klassenavn
+ */
 function statusClass(status) {
   switch ((status || "").trim().toUpperCase()) {
     case "PLANLAGT": return "status-planlagt";
-    case "SOKT":     return "status-sokt";
+    case "SOKT": return "status-sokt";
     case "INTERVJU": return "status-intervju";
-    case "TILBUD":   return "status-tilbud";
-    case "AVSLATT":  return "status-avslatt";
-    default:         return "";
+    case "TILBUD": return "status-tilbud";
+    case "AVSLATT": return "status-avslatt";
+    default: return "";
   }
 }
 
-
 /*
+=========================================
 API-HJELPEFUNKSJONER
-Disse håndterer kommunikasjon med backend:
-- fetch med cookies
-- lesing av feilmeldinger
-- henting og fjerning av reset-token fra URL
+Håndterer fetch, feil og reset-token.
+=========================================
 */
+
+/**
+ * Standardisert fetch mot backend med cookies og JSON-header.
+ *
+ * @param {string} url endpoint-URL
+ * @param {RequestInit} options fetch-opsjoner
+ * @returns {Promise<Response>} fetch-respons
+ */
 async function apiFetch(url, options = {}) {
   return fetch(url, {
     ...options,
@@ -245,6 +339,12 @@ async function apiFetch(url, options = {}) {
   });
 }
 
+/**
+ * Leser feilmelding fra backend-respons.
+ *
+ * @param {Response} res fetch-respons
+ * @returns {Promise<string>} lesbar feilmelding
+ */
 async function readError(res) {
   const txt = await res.text().catch(() => "");
   if (!txt) return `HTTP ${res.status}`;
@@ -256,26 +356,38 @@ async function readError(res) {
   }
 }
 
+/**
+ * Leser token fra query-parameteren "token".
+ *
+ * @returns {string|null} token fra URL
+ */
 function getQueryToken() {
   const url = new URL(window.location.href);
   return url.searchParams.get("token");
 }
+
+/**
+ * Fjerner token fra URL uten å laste siden på nytt.
+ */
 function clearQueryToken() {
   const url = new URL(window.location.href);
   url.searchParams.delete("token");
   window.history.replaceState({}, "", url.toString());
 }
 
-
 /*
+=========================================
 AUTH MODAL-VISNINGER
-Bygger innholdet i popup-vinduet dynamisk:
-- login
-- register
-- forgot password
-- resend verification
-- reset password
+Bygger dynamisk innhold i auth-popup.
+=========================================
 */
+
+/**
+ * Renderer auth-modal basert på valgt visning.
+ *
+ * @param {string} message valgfri melding
+ * @param {boolean} ok om meldingen er positiv
+ */
 function renderAuthView(message = "", ok = false) {
   if (!authForm) return;
 
@@ -349,21 +461,28 @@ function renderAuthView(message = "", ok = false) {
   }
 }
 
+/**
+ * Bytter auth-view og renderer modalinnhold på nytt.
+ *
+ * @param {string} view ønsket visning
+ * @param {string} message valgfri melding
+ * @param {boolean} ok om meldingen er positiv
+ */
 function setAuthView(view, message = "", ok = false) {
   state.authView = view;
   renderAuthView(message, ok);
 }
 
-
 /*
+=========================================
 RENDERING AV UI
-Disse funksjonene oppdaterer det brukeren ser:
-- språk i grensesnittet
-- login/logout-visning
-- filtrerte søknader
-- statistikk og progressbar
-- listen over søknader
+Oppdaterer språk, auth-state, stats og liste.
+=========================================
 */
+
+/**
+ * Oppdaterer alle oversatte tekster i UI.
+ */
 function applyI18n() {
   const subEl = $("#t_subtitle");
   if (subEl) subEl.textContent = t("subtitle");
@@ -383,19 +502,22 @@ function applyI18n() {
   $("#t_f_rejected") && ($("#t_f_rejected").textContent = t("rejected"));
   $("#t_f_offer") && ($("#t_f_offer").textContent = t("offer"));
 
-  $("#t_companyLabel") && ($("#t_companyLabel").textContent = state.lang === "no" ? "Firma *" : "Company *");
-  $("#t_roleLabel") && ($("#t_roleLabel").textContent = state.lang === "no" ? "Stilling *" : "Role *");
+  $("#t_companyLabel") && ($("#t_companyLabel").textContent = t("companyLabel"));
+  $("#t_roleLabel") && ($("#t_roleLabel").textContent = t("roleLabel"));
   $("#t_linkLabel") && ($("#t_linkLabel").textContent = t("link"));
   $("#t_deadlineLabel") && ($("#t_deadlineLabel").textContent = t("deadline"));
 
-  $("#t_companyPh") && ($("#t_companyPh").placeholder = state.lang === "no" ? "F.eks. DNB / Telenor" : "e.g. DNB / Telenor");
-  $("#t_rolePh") && ($("#t_rolePh").placeholder = state.lang === "no" ? "F.eks. Junior utvikler" : "e.g. Junior developer");
+  $("#t_companyPh") && ($("#t_companyPh").placeholder = t("companyPlaceholder"));
+  $("#t_rolePh") && ($("#t_rolePh").placeholder = t("rolePlaceholder"));
   $("#t_linkPh") && ($("#t_linkPh").placeholder = "https://...");
 
   $("#t_loginHint") && ($("#t_loginHint").textContent = t("loginHint"));
   $("#t_emptyLogin") && ($("#t_emptyLogin").textContent = state.me ? t("empty") : t("emptyLogin"));
 }
 
+/**
+ * Oppdaterer login/logout-delene i header.
+ */
 function updateAuthUI() {
   if (state.me?.email) {
     whoami.textContent = state.me.email;
@@ -413,38 +535,47 @@ function updateAuthUI() {
   applyI18n();
 }
 
+/**
+ * Returnerer søknader basert på aktivt filter.
+ *
+ * @returns {Array} filtrert liste med søknader
+ */
 function filteredApps() {
   if (state.filter === "ALL") return state.apps;
   return state.apps.filter(a => a.status === state.filter);
 }
 
+/**
+ * Renderer statistikk og progressbar.
+ */
 function renderStats() {
   if (!stats) return;
 
-  const counts = { PLANLAGT:0, SOKT:0, INTERVJU:0, TILBUD:0, AVSLATT:0 };
+  const counts = { PLANLAGT: 0, SOKT: 0, INTERVJU: 0, TILBUD: 0, AVSLATT: 0 };
   for (const a of state.apps) {
     if (counts[a.status] !== undefined) counts[a.status]++;
   }
+
   const total = state.apps.length;
 
   stats.textContent =
-    `${t("planned")}: ${counts.PLANLAGT} • ` +
-    `${t("applied")}: ${counts.SOKT} • ` +
-    `${t("interview")}: ${counts.INTERVJU} • ` +
-    `${t("offer")}: ${counts.TILBUD} • ` +
-    `${t("rejected")}: ${counts.AVSLATT} • ` +
-    `Total: ${total}`;
+      `${t("planned")}: ${counts.PLANLAGT} • ` +
+      `${t("applied")}: ${counts.SOKT} • ` +
+      `${t("interview")}: ${counts.INTERVJU} • ` +
+      `${t("offer")}: ${counts.TILBUD} • ` +
+      `${t("rejected")}: ${counts.AVSLATT} • ` +
+      `${t("total")}: ${total}`;
 
-  // ✅ progress target
   const target = 100;
   const pct = Math.min(100, Math.round((total / target) * 100));
 
   if (progressLabel) {
     progressLabel.textContent =
-      state.lang === "no"
-        ? `${total} søknader sendt (mål: ${target})`
-        : `${total} sent (goal: ${target})`;
+        state.lang === "no"
+            ? `${total} ${t("appGoal")}`
+            : `${total} ${t("appGoal")}`;
   }
+
   if (progressPct) progressPct.textContent = `${pct}%`;
   if (progressFill) progressFill.style.width = `${pct}%`;
 
@@ -452,6 +583,9 @@ function renderStats() {
   if (bar) bar.setAttribute("aria-valuenow", String(pct));
 }
 
+/**
+ * Renderer listen med jobbsøknader.
+ */
 function renderList() {
   if (!listEl) return;
 
@@ -524,7 +658,7 @@ function renderList() {
     actions.className = "actions";
 
     const select = document.createElement("select");
-    ["PLANLAGT","SOKT","INTERVJU","AVSLATT","TILBUD"].forEach(st => {
+    ["PLANLAGT", "SOKT", "INTERVJU", "AVSLATT", "TILBUD"].forEach(st => {
       const opt = document.createElement("option");
       opt.value = st;
       opt.textContent = statusLabel(st);
@@ -533,15 +667,23 @@ function renderList() {
     });
 
     select.addEventListener("change", async () => {
-      try { await updateStatus(a.id, select.value); }
-      catch (e) { select.value = a.status; console.error(e); }
+      try {
+        await updateStatus(a.id, select.value);
+      } catch (e) {
+        select.value = a.status;
+        console.error(e);
+      }
     });
 
     const delBtn = document.createElement("button");
     delBtn.className = "btn ghost";
     delBtn.textContent = t("del");
     delBtn.addEventListener("click", async () => {
-      try { await deleteApp(a.id); } catch (e) { console.error(e); }
+      try {
+        await deleteApp(a.id);
+      } catch (e) {
+        console.error(e);
+      }
     });
 
     actions.appendChild(select);
@@ -555,15 +697,24 @@ function renderList() {
   }
 }
 
-
 /*
+=========================================
 API-HANDLINGER
-Disse funksjonene snakker med backend og oppdaterer state.
+Kommuniserer med backend og oppdaterer state.
+=========================================
 */
+
+/**
+ * Henter innlogget bruker fra backend og oppdaterer UI.
+ */
 async function loadMe() {
   try {
     const res = await apiFetch(API.me, { method: "GET" });
-    if (!res.ok) { state.me = null; updateAuthUI(); return; }
+    if (!res.ok) {
+      state.me = null;
+      updateAuthUI();
+      return;
+    }
     state.me = await res.json();
     updateAuthUI();
   } catch {
@@ -572,14 +723,33 @@ async function loadMe() {
   }
 }
 
+/**
+ * Henter alle søknader for innlogget bruker.
+ */
 async function loadApps() {
-  if (!state.me) { state.apps = []; renderList(); return; }
+  if (!state.me) {
+    state.apps = [];
+    renderList();
+    return;
+  }
+
   const res = await apiFetch(API.apps, { method: "GET" });
-  if (!res.ok) { state.apps = []; renderList(); return; }
+  if (!res.ok) {
+    state.apps = [];
+    renderList();
+    return;
+  }
+
   state.apps = await res.json();
   renderList();
 }
 
+/**
+ * Logger inn bruker.
+ *
+ * @param {string} email e-post
+ * @param {string} password passord
+ */
 async function doLogin(email, password) {
   const res = await apiFetch(API.login, {
     method: "POST",
@@ -591,6 +761,12 @@ async function doLogin(email, password) {
   await loadApps();
 }
 
+/**
+ * Registrerer ny bruker.
+ *
+ * @param {string} email e-post
+ * @param {string} password passord
+ */
 async function doRegister(email, password) {
   const res = await apiFetch(API.register, {
     method: "POST",
@@ -599,6 +775,11 @@ async function doRegister(email, password) {
   if (!res.ok) throw new Error(await readError(res));
 }
 
+/**
+ * Sender ny verifiseringsmail.
+ *
+ * @param {string} email e-postadresse
+ */
 async function doResendVerification(email) {
   const res = await apiFetch(API.resendVerification, {
     method: "POST",
@@ -607,6 +788,11 @@ async function doResendVerification(email) {
   if (!res.ok) throw new Error(await readError(res));
 }
 
+/**
+ * Starter glemt-passord-flyt.
+ *
+ * @param {string} email e-postadresse
+ */
 async function doForgotPassword(email) {
   const res = await apiFetch(API.forgotPassword, {
     method: "POST",
@@ -615,6 +801,12 @@ async function doForgotPassword(email) {
   if (!res.ok) throw new Error(await readError(res));
 }
 
+/**
+ * Setter nytt passord med reset-token.
+ *
+ * @param {string} token reset-token
+ * @param {string} password nytt passord
+ */
 async function doResetPassword(token, password) {
   const res = await apiFetch(API.resetPassword, {
     method: "POST",
@@ -623,6 +815,9 @@ async function doResetPassword(token, password) {
   if (!res.ok) throw new Error(await readError(res));
 }
 
+/**
+ * Logger ut bruker og nullstiller frontend-state.
+ */
 async function doLogout() {
   await apiFetch(API.logout, { method: "POST" });
   state.me = null;
@@ -631,6 +826,11 @@ async function doLogout() {
   renderList();
 }
 
+/**
+ * Oppretter en ny jobbsøknad.
+ *
+ * @param {Object} payload data som sendes til backend
+ */
 async function createApp(payload) {
   const res = await apiFetch(API.apps, {
     method: "POST",
@@ -642,6 +842,12 @@ async function createApp(payload) {
   renderList();
 }
 
+/**
+ * Oppdaterer status på en jobbsøknad.
+ *
+ * @param {number} id søknads-ID
+ * @param {string} status ny status
+ */
 async function updateStatus(id, status) {
   const res = await apiFetch(`${API.apps}/${id}/status`, {
     method: "PUT",
@@ -653,6 +859,11 @@ async function updateStatus(id, status) {
   renderList();
 }
 
+/**
+ * Sletter en jobbsøknad.
+ *
+ * @param {number} id søknads-ID
+ */
 async function deleteApp(id) {
   const res = await apiFetch(`${API.apps}/${id}`, { method: "DELETE" });
   if (!(res.status === 204 || res.ok)) throw new Error(await readError(res));
@@ -660,10 +871,11 @@ async function deleteApp(id) {
   renderList();
 }
 
-
 /*
+=========================================
 EVENT LISTENERS
-Her håndteres klikk, submit og brukerinteraksjoner i grensesnittet.
+Håndterer brukerinteraksjon.
+=========================================
 */
 loginBtn?.addEventListener("click", (e) => {
   e.preventDefault();
@@ -714,6 +926,7 @@ authForm?.addEventListener("submit", async (e) => {
         setAuthView("login", t("regOk"), true);
         return;
       }
+
       await doLogin(email, password);
       closeModal();
       return;
@@ -739,7 +952,7 @@ authForm?.addEventListener("submit", async (e) => {
       const newPass = authForm.querySelector("#rpNew")?.value || "";
       const confirm = authForm.querySelector("#rpConfirm")?.value || "";
       if (newPass !== confirm) return renderAuthView(t("passwordMismatch"), false);
-      if (!state.resetToken) return renderAuthView("Token mangler", false);
+      if (!state.resetToken) return renderAuthView(t("missingToken"), false);
 
       await doResetPassword(state.resetToken, newPass);
 
@@ -749,13 +962,17 @@ authForm?.addEventListener("submit", async (e) => {
       return;
     }
   } catch (err) {
-    renderAuthView(err?.message || "Noe gikk galt", false);
+    renderAuthView(err?.message || t("genericError"), false);
     console.error(err);
   }
 });
 
 logoutBtn?.addEventListener("click", async () => {
-  try { await doLogout(); } catch (e) { console.error(e); }
+  try {
+    await doLogout();
+  } catch (e) {
+    console.error(e);
+  }
 });
 
 createForm?.addEventListener("submit", async (e) => {
@@ -782,7 +999,7 @@ createForm?.addEventListener("submit", async (e) => {
     createForm.reset();
     setMsg(formMsg, "", true);
   } catch (err) {
-    setMsg(formMsg, err?.message || "Error");
+    setMsg(formMsg, err?.message || t("error"));
     console.error(err);
   }
 });
@@ -804,14 +1021,11 @@ langBtn?.addEventListener("click", () => {
   if (authModal && !authModal.classList.contains("hidden")) renderAuthView();
 });
 
-
 /*
+=========================================
 INIT
-Kjører når siden lastes:
-- setter språk
-- oppdaterer login-visning
-- sjekker reset-token
-- laster bruker og søknader
+Kjører ved første sideinnlasting.
+=========================================
 */
 (async function init() {
   applyI18n();
