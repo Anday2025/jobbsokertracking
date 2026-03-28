@@ -57,9 +57,9 @@ Andre:
 
 ## Backend-struktur
 
-![Backend](./docs/backend1.png)
+![Backend](./docs/backend_1.png)
 
-![Backend](./docs/backend2.png)
+![Backend](./docs/backend_2.png)
 
 
 ## Systemarkitektur
