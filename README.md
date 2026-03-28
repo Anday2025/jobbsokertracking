@@ -79,7 +79,7 @@ http://localhost:8080/swagger-ui.html
 git clone https://github.com/Anday2025/job-tracker.git
 cd job-tracker
 mvn spring-boot:run
-```
+
 
 ## Miljøvariabler 
 
