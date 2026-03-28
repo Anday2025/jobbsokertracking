@@ -9,6 +9,8 @@ import com.example.jobtracker.repository.VerificationTokenRepository;
 import com.example.jobtracker.security.JwtService;
 import com.example.jobtracker.service.AuthService;
 import com.example.jobtracker.service.MailService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.Email;
@@ -25,12 +27,36 @@ import java.time.Instant;
 import java.util.Map;
 
 /**
- * REST-controller for autentisering og brukeradgang.
- * <p>
- * Klassen håndterer registrering, e-postverifisering, innlogging,
- * utlogging, henting av innlogget bruker, utsending av ny
- * verifiseringslenke, glemt passord og passordtilbakestilling.
+ * REST-controller for autentisering og brukerhåndtering.
+ *
+ * <p>Denne kontrolleren eksponerer API-endepunkter for:
+ * <ul>
+ *     <li>Registrering av nye brukere</li>
+ *     <li>E-postverifisering</li>
+ *     <li>Innlogging og utlogging (JWT-basert)</li>
+ *     <li>Henting av innlogget bruker</li>
+ *     <li>Resending av verifiseringsmail</li>
+ *     <li>Glemt passord (reset flow)</li>
+ * </ul>
+ *
+ * <p>Autentisering er basert på JWT-token lagret i HTTP-only cookies
+ * for økt sikkerhet.
+ *
+ * <p>Sikkerhetstiltak inkluderer:
+ * <ul>
+ *     <li>Passord hashing (BCrypt)</li>
+ *     <li>Token-baserte verifiseringslenker</li>
+ *     <li>Utløpstid på tokens</li>
+ *     <li>Beskyttelse mot bruker-eksponering (generic responses)</li>
+ * </ul>
+ *
+ * <p>Alle sensitive operasjoner validerer input og returnerer
+ * standardiserte feilmeldinger.
+ *
+ * @author Anday
+ * @version 1.0
  */
+@Tag(name = "Authentication", description = "Authentication, verification, and password reset endpoints")
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -182,6 +208,7 @@ public class AuthController {
      * @return respons som bekrefter at bruker er opprettet, eller feilmelding
      * dersom input er ugyldig eller brukeren allerede finnes
      */
+    @Operation(summary = "Register a new user")
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody AuthRequest req, HttpServletRequest request) {
         String email = normEmail(req.email());
@@ -198,7 +225,6 @@ public class AuthController {
 
         final AuthService.PendingVerification pending;
         try {
-            // ✅ DB først (Transactional inni AuthService)
             pending = authService.createPendingUser(email, password);
         } catch (IllegalStateException e) {
             String msg = (e.getMessage() == null) ? "Ugyldig forespørsel" : e.getMessage();
@@ -210,10 +236,8 @@ public class AuthController {
 
         String verifyUrl = getBaseUrl(request) + "/api/auth/verify?token=" + pending.token();
 
-        // Debug: Render -> Logs
         System.out.println("VERIFY URL: " + verifyUrl);
 
-        // ✅ Mail etterpå (ingen rollback)
         try {
             mailService.sendVerificationEmail(pending.email(), verifyUrl);
             return ResponseEntity.ok(Map.of(
@@ -221,7 +245,6 @@ public class AuthController {
                     "message", "Bruker opprettet. Sjekk e-posten din for bekreftelse, også i søppelpost."
             ));
         } catch (Exception e) {
-            // Bruker er opprettet, men epost feilet
             return ResponseEntity.status(201).body(Map.of(
                     "ok", true,
                     "emailSent", false,
@@ -241,6 +264,7 @@ public class AuthController {
      * @return respons som bekrefter verifisering, eller feilmelding dersom
      * tokenet er ugyldig, brukt eller utløpt
      */
+    @Operation(summary = "Verify account with email token")
     @GetMapping("/verify")
     public ResponseEntity<?> verify(@RequestParam String token) {
         VerificationToken vt = tokenRepo.findById(token).orElse(null);
@@ -268,6 +292,7 @@ public class AuthController {
      * @return respons med brukerens e-post ved vellykket innlogging,
      * eller feilmelding dersom legitimasjon er feil eller konto ikke er aktivert
      */
+    @Operation(summary = "Login and create session cookie")
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthRequest req,
                                    HttpServletRequest request,
@@ -300,6 +325,7 @@ public class AuthController {
      * @return respons med e-postadresse for innlogget bruker, eller
      * {@code 401 Unauthorized} dersom brukeren ikke er autentisert
      */
+    @Operation(summary = "Get current authenticated user")
     @GetMapping("/me")
     public ResponseEntity<?> me(Authentication auth) {
         if (auth == null || !auth.isAuthenticated()) {
@@ -315,6 +341,7 @@ public class AuthController {
      * @param response HTTP-responsen hvor tømming av cookien legges til
      * @return respons som bekrefter vellykket utlogging
      */
+    @Operation(summary = "Logout current user")
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response) {
         clearSessionCookie(request, response);
@@ -332,20 +359,18 @@ public class AuthController {
      * @return generell OK-respons, eventuelt med informasjon om at ny
      * bekreftelsesmail er sendt
      */
+    @Operation(summary = "Resend verification email")
     @PostMapping("/resend-verification")
     public ResponseEntity<?> resendVerification(@RequestBody Map<String, String> body, HttpServletRequest request) {
         String email = normEmail(body.get("email"));
         if (email.isBlank()) return ResponseEntity.badRequest().body(Map.of("error", "E-post mangler"));
 
-        // ✅ Vi returnerer OK uansett for ikke å “avsløre”
-        // Men internt lager vi token hvis user finnes og ikke er aktivert
         String token = authService.createNewVerificationToken(email);
 
         if (token == null || token.isBlank()) {
             return ResponseEntity.ok(Map.of("ok", true));
         }
 
-        // ✅ Bruk epost fra DB (sikkerhet/normalisering)
         User u = userRepository.findByEmail(email).orElse(null);
         if (u == null) return ResponseEntity.ok(Map.of("ok", true));
         if (u.isEnabled()) return ResponseEntity.ok(Map.of("ok", true));
@@ -376,6 +401,7 @@ public class AuthController {
      * @param request HTTP-forespørselen brukt til å bygge reset-lenke
      * @return respons som bekrefter at forespørselen er behandlet
      */
+    @Operation(summary = "Start forgot-password flow")
     @PostMapping("/forgot-password")
     public ResponseEntity<?> forgotPassword(@RequestBody Map<String, String> body, HttpServletRequest request) {
         String email = normEmail(body.get("email"));
@@ -383,7 +409,6 @@ public class AuthController {
 
         String token = authService.createPasswordResetToken(email);
 
-        // Returner OK uansett (ikke avslør)
         if (token == null || token.isBlank()) return ResponseEntity.ok(Map.of("ok", true));
 
         String resetUrl = getBaseUrl(request) + "/?token=" + token;
@@ -415,6 +440,7 @@ public class AuthController {
      * @return respons som bekrefter at passordet er oppdatert, eller feilmelding
      * dersom token eller passord ikke er gyldig
      */
+    @Operation(summary = "Reset password using token")
     @PostMapping("/reset-password")
     public ResponseEntity<?> resetPassword(@RequestBody Map<String, String> body) {
         String token = body.getOrDefault("token", "").trim();
@@ -443,7 +469,8 @@ public class AuthController {
 
         try {
             mailService.sendPasswordChangedEmail(u.getEmail());
-        } catch (Exception ignored) { }
+        } catch (Exception ignored) {
+        }
 
         return ResponseEntity.ok(Map.of("ok", true, "message", "Passord er oppdatert."));
     }
