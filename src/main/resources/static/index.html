@@ -1,15 +1,31 @@
 <!doctype html>
 <html lang="no">
-
 <!--
-HEAD-SEKSJON
-Inneholder metadata for siden:
-- tegnsett (UTF-8)
-- mobiltilpasning
-- sidetittel
-- kobling til CSS
+=========================================
+Jobbsøkertracking - Frontend UI
+=========================================
+
+Beskrivelse:
+En enkel webapplikasjon for å holde oversikt over jobbsøknader.
+
+Funksjonalitet:
+- Registrering og innlogging
+- Oppretting og administrasjon av søknader
+- Filtrering på status
+- Progressbar og statistikk
+- Språkvalg (NO/EN)
+
+Teknologi:
+- HTML
+- CSS
+- Vanilla JavaScript
+- Spring Boot backend via REST API
 -->
 <head>
+    <!-- =========================================
+         HEAD / METADATA
+         Tegnsett, mobiltilpasning, tittel og CSS
+    ========================================= -->
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>jobbsokertracking</title>
@@ -18,17 +34,16 @@ Inneholder metadata for siden:
 
 <body>
 
-<!--
-BAKGRUNNSEFFEKT
-Dekorativ glow-effekt som styres av CSS
--->
+<!-- =========================================
+     DECORATIVE BACKGROUND GLOW
+     Ekstra visuelt lag styrt av CSS
+========================================= -->
 <div class="bgGlow"></div>
 
-
-<!--
-HEADER / TOPPMENY
-Viser logo, innlogging, brukerinfo og språkvalg
--->
+<!-- =========================================
+     HEADER / TOP BAR
+     Logo, brukerstatus, auth-knapper og språkvalg
+========================================= -->
 <header class="container header">
     <a class="brand" href="/" aria-label="Gå til forsiden">
         <div class="logoText" aria-label="jobbsokertracking">
@@ -47,20 +62,17 @@ Viser logo, innlogging, brukerinfo og språkvalg
     </div>
 </header>
 
-
-<!--
-HOVEDINNHOLD
-Grid-layout med to seksjoner:
-1. Venstre: legg til ny søknad
-2. Høyre: oversikt over søknader
--->
+<!-- =========================================
+     MAIN CONTENT (Grid layout)
+     - Venstre: Opprette søknad
+     - Høyre: Liste, statistikk og filter
+========================================= -->
 <main class="container grid" id="main">
 
-
-    <!--
-    VENSTRE PANEL
-    Skjema for å registrere en ny jobbsøknad
-    -->
+    <!-- =========================================
+         LEFT PANEL
+         Form for oppretting av ny jobbsøknad
+    ========================================= -->
     <section class="card" id="leftCard">
         <h2 id="t_newAppTitle">Ny søknad</h2>
 
@@ -94,20 +106,17 @@ Grid-layout med to seksjoner:
         </form>
     </section>
 
-
-
-    <!--
-    HØYRE PANEL
-    Viser oversikt over alle søknader
-    -->
+    <!-- =========================================
+         RIGHT PANEL
+         Søknadsliste, statistikk, progress og filtre
+    ========================================= -->
     <section class="card" id="rightCard">
         <div class="row">
             <h2 id="t_appsTitle">Søknader</h2>
 
-            <!--
-            STATISTIKK OG PROGRESSBAR
-            Viser status-statistikk og fremdrift mot et mål
-            -->
+            <!-- =========================================
+                 STATS + PROGRESS
+            ========================================= -->
             <div class="statsBox">
                 <div class="pill" id="stats">—</div>
 
@@ -124,11 +133,9 @@ Grid-layout med to seksjoner:
             </div>
         </div>
 
-
-        <!--
-        FILTERKNAPPER
-        Lar brukeren filtrere søknader etter status
-        -->
+        <!-- =========================================
+             FILTER BUTTONS
+        ========================================= -->
         <div class="filters">
             <button class="filter active" data-filter="ALL" id="t_f_all">Alle</button>
             <button class="filter" data-filter="PLANLAGT" id="t_f_planned">Planlagt</button>
@@ -138,32 +145,27 @@ Grid-layout med to seksjoner:
             <button class="filter" data-filter="TILBUD" id="t_f_offer">Tilbud</button>
         </div>
 
-
-        <!--
-        SØKNADSLISTE
-        JavaScript fyller denne listen dynamisk
-        -->
+        <!-- =========================================
+             APPLICATION LIST
+             Fylles dynamisk av app.js
+        ========================================= -->
         <div id="list" class="list">
             <div class="muted" id="t_emptyLogin">Ingen treff. Logg inn for å se dine søknader.</div>
         </div>
     </section>
-
 </main>
 
-
-<!--
-FOOTER
-Informasjon om prosjektet
--->
+<!-- =========================================
+     FOOTER
+========================================= -->
 <footer class="container muted small" id="t_footer">
     Jobbsokertracking-webappen er under aktiv utvikling og er ennå ikke ferdigstilt! <br> Anday.
 </footer>
 
-
-<!--
-INNLOGGINGSMODAL
-Popup-vindu for login / register / reset password
--->
+<!-- =========================================
+     AUTH MODAL
+     Login / register / forgot / reset password
+========================================= -->
 <div id="authModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="authTitle">
     <div class="modalCard">
         <div class="modalTop">
@@ -174,16 +176,10 @@ Popup-vindu for login / register / reset password
     </div>
 </div>
 
-
-<!--
-JAVASCRIPT
-app.js håndterer:
-- autentisering
-- API-kall
-- rendering av søknader
-- filtrering
-- progress bar
--->
+<!-- =========================================
+     JAVASCRIPT
+     app.js håndterer auth, API-kall og UI-rendering
+========================================= -->
 <script src="app.js" defer></script>
 
 </body>

@@ -17,20 +17,53 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+/**
+ * Hovedkonfigurasjon for Spring Security i applikasjonen.
+ * <p>
+ * Klassen definerer passord-encoder, filterkjede, tilgangsregler
+ * og CORS-oppsett for backend-API-et.
+ */
 @Configuration
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
 
+    /**
+     * Oppretter en ny sikkerhetskonfigurasjon.
+     *
+     * @param jwtAuthFilter filter for JWT-basert autentisering
+     */
     public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
         this.jwtAuthFilter = jwtAuthFilter;
     }
 
+    /**
+     * Oppretter en {@link PasswordEncoder} for hashing av passord.
+     *
+     * @return bcrypt-basert password encoder
+     */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
+    /**
+     * Konfigurerer applikasjonens security filter chain.
+     * <p>
+     * Regler:
+     * <ul>
+     *   <li>CSRF er deaktivert</li>
+     *   <li>CORS er aktivert</li>
+     *   <li>Session policy er stateless</li>
+     *   <li>{@code /api/auth/**} er åpent</li>
+     *   <li>Swagger-endepunkter er åpne</li>
+     *   <li>andre {@code /api/**}-endepunkter krever autentisering</li>
+     * </ul>
+     *
+     * @param http Spring Securitys HTTP-konfigurasjon
+     * @return konfigurert filter chain
+     * @throws Exception dersom konfigurasjonen feiler
+     */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
@@ -41,7 +74,12 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers(
+                                "/api/auth/**",
+                                "/swagger-ui.html",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**"
+                        ).permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll()
                 )
@@ -57,16 +95,18 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * Konfigurerer CORS-regler for frontend-klienter som kan kalle API-et.
+     *
+     * @return CORS-konfigurasjonskilde
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
 
         cfg.setAllowedOrigins(List.of(
-                "https://job-tracker-0qv9.onrender.com",
-                "http://localhost:3000",
-                "http://localhost:5173",
-                "http://localhost:8080",
-                "http://localhost:63342"
+                "https://www.jobbsokertracking.no",
+                "https://jobbsokertracking.no"
         ));
 
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
