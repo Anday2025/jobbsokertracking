@@ -75,6 +75,8 @@ http://localhost:8080/swagger-ui.html
 
 ## Kjør lokalt
 
+## Kjør lokalt
+
 ```bash
 git clone https://github.com/Anday2025/job-tracker.git
 cd job-tracker
