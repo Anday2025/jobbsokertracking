@@ -208,7 +208,6 @@ function hide(el) {
 function openModal() {
   if (!authModal) return;
   authModal.classList.remove("hidden");
-  renderAuthView();
   setTimeout(() => authForm?.querySelector("input")?.focus(), 40);
 }
 
@@ -833,7 +832,6 @@ langBtn?.addEventListener("click", () => {
   renderList();
   if (authModal && !authModal.classList.contains("hidden")) renderAuthView();
 });
-
 (async function init() {
   applyI18n();
   updateAuthUI();
@@ -841,17 +839,26 @@ langBtn?.addEventListener("click", () => {
   const token = getQueryToken();
   const verified = getVerifiedStatus();
 
-  if (token) {
-    state.resetToken = token;
-    setAuthView("reset");
-    openModal();
-  } else if (verified) {
-    const msg = verifiedMessage(verified);
-    clearQueryParams("verified");
-    setAuthView("login", msg, isVerifiedOk(verified));
-    openModal();
-  }
-
   await loadMe();
   await loadApps();
+
+  if (token) {
+    state.resetToken = token;
+    state.authView = "reset";
+    openModal();
+    renderAuthView();
+    return;
+  }
+
+  if (verified) {
+    const msg = verifiedMessage(verified);
+    const ok = isVerifiedOk(verified);
+
+    state.authView = "login";
+    openModal();
+    renderAuthView(msg, ok);
+
+    clearQueryParams("verified");
+    return;
+  }
 })();
