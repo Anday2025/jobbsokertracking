@@ -421,6 +421,7 @@ public class AuthController {
         }
     }
 
+
     /**
      * Starter glemt-passord-flyten ved å opprette reset-token og sende e-post.
      *
