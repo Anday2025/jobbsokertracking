@@ -97,7 +97,7 @@ Applikasjonen bruker miljøvariabler for konfigurasjon av database og e-post. Di
 ## Om
 
 - Utviklet av Anday Semere
-- Bachelor i Data Engineering (HVL)
+- Bachelor i ingeniørfag, data
 
 ## Status
 
